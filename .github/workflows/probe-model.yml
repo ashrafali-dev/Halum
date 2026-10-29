@@ -1,0 +1,55 @@
+name: probe-model
+on:
+  workflow_dispatch:
+  push:
+    branches: [probe]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet onnxruntime numpy pillow
+      - name: Download model + fixture
+        run: |
+          mkdir -p probe
+          curl -sSL -o probe/detector.onnx https://huggingface.co/ogkalu/comic-text-and-bubble-detector/resolve/main/detector-v4-s_int8.onnx
+          curl -sSL -o probe/frieren.jpg https://raw.githubusercontent.com/zbu1/manga-translator-cli/main/docs/frieren_raw.jpg
+          ls -l probe/
+      - run: python - <<'PY'
+          import onnxruntime as ort, numpy as np, json
+          s = ort.InferenceSession("probe/detector.onnx", providers=["CPUExecutionProvider"])
+          print("INPUTS:", [(i.name, i.type, i.shape) for i in s.get_inputs()])
+          print("OUTPUTS:", [(o.name, o.type, o.shape) for o in s.get_outputs()])
+          from PIL import Image
+          im = Image.open("probe/frieren.jpg").convert("RGB").resize((640,640))
+          x = np.asarray(im, dtype=np.float32)/255.0
+          x = x.transpose(2,0,1)[None]
+          feeds = {}
+          for i in s.get_inputs():
+              if i.type == 'tensor(int64)':
+                  feeds[i.name] = np.array([[640,640]], dtype=np.int64)
+              else:
+                  feeds[i.name] = x.astype(np.float32)
+          outs = s.run(None, feeds)
+          for o, v in zip(s.get_outputs(), outs):
+              print(o.name, v.shape, v.dtype, "min/max:", float(v.min()), float(v.max()))
+          np.save("probe/out.npy", outs[0])
+          PY
+      - run: python - <<'PY'
+          import numpy as np
+          v = np.load("probe/out.npy")
+          # try to interpret common RT-DETR output: [1,300,4] boxes + [1,300,4] logits + [1,300,4] masks
+          if v.ndim == 3 and v.shape[0] == 1:
+              print("squeezed:", v.shape)
+              a = v[0]
+              print("row0:", a[0])
+              print("row1:", a[1])
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-out
+          path: probe/out.npy
