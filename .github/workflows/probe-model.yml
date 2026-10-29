@@ -12,16 +12,11 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install --quiet onnxruntime numpy pillow
-      - name: Download model + fixture
+      - name: Fetch
         run: |
           mkdir -p probe
-          curl -sSL -o probe/detector.onnx https://huggingface.co/ogkalu/comic-text-and-bubble-detector/resolve/main/detector-v4-s_int8.onnx
+          curl -sSL -o probe/migan.onnx https://huggingface.co/lxfater/inpaint-web/resolve/main/migan.onnx
           curl -sSL -o probe/frieren.jpg https://raw.githubusercontent.com/zbu1/manga-translator-cli/main/docs/frieren_raw.jpg
           ls -l probe/
-      - name: Probe
-        run: python .github/probe/probe.py
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: probe-out
-          path: probe/
+      - name: Probe inpaint
+        run: python .github/probe/probe_inpaint.py
