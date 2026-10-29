@@ -17,6 +17,10 @@ jobs:
           mkdir -p probe
           curl -sSL -o probe/migan.onnx https://huggingface.co/lxfater/inpaint-web/resolve/main/migan.onnx
           curl -sSL -o probe/frieren.jpg https://raw.githubusercontent.com/zbu1/manga-translator-cli/main/docs/frieren_raw.jpg
-          ls -l probe/
-      - name: Probe inpaint
-        run: python .github/probe/probe_inpaint.py
+      - name: Probe inpaint quality
+        run: python .github/probe/probe_inpaint2.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: inpaint-out
+          path: probe/migan_int8_out.png
