@@ -10,7 +10,7 @@ None are committed. The shipped APK carries the *exported* artifacts as
 |---|---|---|---|
 | Total model assets in APK | <= 35 MB | ~15 MB | gate in `build.yml` |
 | Individual model | <= 25 MB | ~12 MB (MI-GAN) | gate in `build.yml` |
-| APK total | <= 60 MB | TBD | gate in `build.yml` |
+| APK total | <= 70 MB | ~63 MB standard | raised from 60 MB in session 5 |
 | ABIs | `armeabi-v7a` required | `armeabi-v7a` + `arm64-v8a` | |
 
 ## 1. Bubble segmentation — PRIMARY
@@ -26,7 +26,15 @@ None are committed. The shipped APK carries the *exported* artifacts as
 | Claimed quality | mAP@50 99.1% (Manga109) |
 | Input | RGB, 640×640, letterboxed |
 | Outputs (.pt analysis) | `(1, 37, 8400)` boxes+masks coeffs, `(1, 32, 160, 160)` mask proto |
-| Export target | TFLite INT8, expect ~2–3 MB |
+| Export target | **TFLite float32, 11.07 MB** (session 5 — see below) |
+
+> **Settled dtype (session 5).** The shipped model is onnx2tf
+> `bubble_float32.tflite`. The float16 variant (5.86 MB) that shipped before
+> **does not run on the device CPU**:
+> `conv.cc:361 input_type == kTfLiteFloat32 || kTfLiteUInt8 || kTfLiteInt8 ||
+> kTfLiteInt16 was not true. Node number 1 (CONV_2D) failed to prepare.`
+> The app also fed uint8 bytes to a float32 graph; `Letterboxer` now emits
+> NHWC float32 in 0..1, matching `integration_test.py`'s `/255.0`.
 
 ### Evidence (probe run 40979428209, 2026-10-30)
 

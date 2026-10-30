@@ -4,7 +4,7 @@
 Usage: report_sizes.py <apk> [<models_dir> ...]
 
 Enforces:
-  APK <= 60 MB
+  APK <= 70 MB  (AC10 raised from 60 MB when bubble.tflite moved to float32)
   sum(model assets across all dirs, de-duped by name) <= 35 MB
   each model <= 25 MB
   APK contains lib/armeabi-v7a/*.so  (32-bit support is a hard requirement)
@@ -19,7 +19,7 @@ import sys
 import zipfile
 
 MB = 1_000_000
-APK_LIMIT = 60 * MB
+APK_LIMIT = 70 * MB
 MODELS_LIMIT = 35 * MB
 MODEL_LIMIT = 25 * MB
 

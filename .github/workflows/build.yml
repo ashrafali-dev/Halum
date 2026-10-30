@@ -62,7 +62,7 @@ jobs:
 
       # D21 (final): the default `standard` flavor is the universal fat APK
       # (both ABIs, no MI-GAN) and is the artifact that must pass AC10. The
-      # `full` flavor adds MI-GAN and may exceed 60 MB — it is reported, not
+      # `full` flavor adds MI-GAN and may exceed 70 MB — it is reported, not
       # gated.
       - name: Size gate — standard flavor (universal, no MI-GAN)
         run: |

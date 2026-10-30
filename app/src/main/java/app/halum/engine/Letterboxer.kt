@@ -16,7 +16,8 @@ object Letterboxer {
     const val PAD = 114
 
     data class Result(
-        val rgb: ByteArray,
+        /** NHWC float32 RGB in 0..1 — the dtype the exported graph declares. */
+        val rgb: FloatArray,
         val letterbox: SegDecoder.Letterbox,
     )
 
@@ -38,13 +39,15 @@ object Letterboxer {
         val pixels = IntArray(size * size)
         canvas.getPixels(pixels, 0, size, 0, 0, size, size)
         canvas.recycle()
-        // NHWC uint8 RGB, the layout the exported tflite declares.
-        val rgb = ByteArray(size * size * 3)
+        // NHWC float32 RGB scaled to 0..1, matching integration_test.py
+        // (`astype(np.float32) / 255.0`). Feeding uint8 bytes to a float32
+        // graph is what made CONV_2D fail to prepare on the device.
+        val rgb = FloatArray(size * size * 3)
         var o = 0
         for (p in pixels) {
-            rgb[o++] = ((p shr 16) and 0xFF).toByte()
-            rgb[o++] = ((p shr 8) and 0xFF).toByte()
-            rgb[o++] = (p and 0xFF).toByte()
+            rgb[o++] = ((p shr 16) and 0xFF) / 255f
+            rgb[o++] = ((p shr 8) and 0xFF) / 255f
+            rgb[o++] = (p and 0xFF) / 255f
         }
         return Result(rgb, box)
     }

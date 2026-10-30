@@ -4,7 +4,7 @@
 Usage: check_abi.py <apk>
 
 Asserts both lib/armeabi-v7a/ and lib/arm64-v8a/ are present and the APK is
-<= 60 MB. Prints `APK_ABI_CHECK: v7a=… arm64=… sizeMB=… pass=…`, exits 1 on
+<= 70 MB. Prints `APK_ABI_CHECK: v7a=… arm64=… sizeMB=… pass=…`, exits 1 on
 failure.
 """
 import os
@@ -12,7 +12,7 @@ import sys
 import zipfile
 
 MB = 1_000_000
-APK_LIMIT = 60 * MB
+APK_LIMIT = 70 * MB
 
 
 def main() -> int:

@@ -74,7 +74,11 @@ def onnx_to_tflite(onnx_path: str, work_dir: str) -> str:
     )
     if not candidates:
         raise SystemExit("onnx2tf produced no tflite")
-    chosen = next((c for c in candidates if "float16" in c), candidates[0])
+    # float32, not float16. The float16 flatbuffer_direct output fails to
+    # prepare on the device CPU: "conv.cc:361 input_type == kTfLiteFloat32 ||
+    # ... was not true. Node number 1 (CONV_2D) failed to prepare." float32 is
+    # ~11 MB instead of 5.9 MB but it is the variant known to run.
+    chosen = next((c for c in candidates if "float32" in c), candidates[0])
     print(f"[export_bubble] tflite {os.path.getsize(chosen) / 1e6:.2f} MB ({os.path.basename(chosen)})")
     return chosen
 

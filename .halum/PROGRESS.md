@@ -122,5 +122,5 @@ Independently still open: hand-annotate `wha.jpg` for real AC3 ground truth
 | AC7 | realtime 1 panel < 5 s | not started |
 | AC8 | overlay persists until scroll | not started |
 | AC9 | small bubbles never merged | not started |
-| AC10 | APK <= 60 MB, models <= 35 MB, armeabi-v7a | default flavor 45.8 MB v7a-only before D21; both flavors gated in CI |
+| AC10 | APK <= 70 MB (raised from 60, session 5), models <= 35 MB, armeabi-v7a | standard flavor gated at 70 MB; `full` reported only |
 | AC11 | 6 memory files current | yes — updated session 3 |

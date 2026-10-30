@@ -334,7 +334,13 @@ MI-GAN by default (wrong — over 60 MB).
 **How to apply.** Default = universal fat APK, Telea/solid-fill. `full`
 flavor is opt-in and never the release artifact. Verify with
 `unzip -l app-debug.apk | grep lib/`: both ABI dirs must be present, and
-APK <= 60 MB.
+APK <= 70 MB.
+
+**Amended (session 5).** The APK cap moved 60 MB → 70 MB by explicit user
+decision, when `bubble.tflite` had to become float32 (11.07 MB) because the
+float16 export would not prepare on the device CPU. The alternative — dropping
+the 38 MB OpenCV payload that `InpaintEngine` does not use yet — was offered
+and declined; revisit if the APK becomes painful to download.
 
 ### D22: AC4 residual is scoped, never a literal `< 5`
 
