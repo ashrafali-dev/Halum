@@ -16,7 +16,7 @@ jobs:
         run: |
           mkdir -p probe
           curl -sSL -o probe/best.pt https://huggingface.co/juithealien/manga109-segmentation-bubble/resolve/main/best.pt
-          curl -sSL -o probe/frieren.jpg https://raw.githubusercontent.com/zbu1/manga-translator-cli/main/docs/frieren_raw.jpg
-          ls -l probe/
-      - name: Probe bubble model
-        run: python .github/probe/probe_bubble.py
+          B=https://raw.githubusercontent.com/zbu1/manga-translator-cli/main/docs
+          for f in frieren_raw.jpg motl_raw.png wha_raw.jpg ajin_raw.jpg; do curl -sSL -o probe/$f $B/$f; done
+      - name: Probe export
+        run: python .github/probe/probe_export.py
