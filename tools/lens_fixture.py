@@ -257,9 +257,10 @@ def encode_box(bbox: list[float], width: int, height: int) -> bytes:
     return len_field(1, b)
 
 
-def encode_words(text: str) -> bytes:
-    """One TextLine.word: field 1 repeated Word, field 2 = source text."""
-    return len_field(1, str_field(2, text)) + str_field(2, text)
+def encode_line(block: dict, width: int, height: int) -> bytes:
+    """TextLine: 1 = word (repeated), 2 = line geometry."""
+    word = len_field(1, str_field(2, block["text"]))  # Word.plain_text = 2
+    return len_field(1, word) + len_field(2, encode_box(block["bbox"], width, height))
 
 
 def encode_page(blocks: list[dict], lang: str, width: int, height: int) -> bytes:
@@ -274,7 +275,7 @@ def encode_page(blocks: list[dict], lang: str, width: int, height: int) -> bytes
     paras = b"".join(
         len_field(
             1,
-            len_field(2, encode_words(b["text"]))
+            len_field(2, encode_line(b, width, height))
             + len_field(3, encode_box(b["bbox"], width, height))
             + str_field(5, b.get("script") or lang),
         )
