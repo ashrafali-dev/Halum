@@ -23,6 +23,27 @@ def run(cmd):
     subprocess.run(cmd, check=True)
 
 
+def pick_tflite(dir_path, cap_bytes):
+    """Smallest *.tflite under cap_bytes, preferring quantised, then float16."""
+    import glob
+
+    files = [f for f in glob.glob(os.path.join(dir_path, "*.tflite")) if os.path.getsize(f) <= cap_bytes]
+    if not files:
+        return None
+
+    def rank(path):
+        name = os.path.basename(path).lower()
+        if "int8" in name or "dynamic_range_quant" in name or "integer_quant" in name:
+            pref = 0
+        elif "float16" in name:
+            pref = 1
+        else:
+            pref = 2
+        return (pref, os.path.getsize(path))
+
+    return sorted(files, key=rank)[0]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--onnx", required=True)
@@ -47,8 +68,15 @@ def main() -> int:
              "sng4onnx", "onnxsim", "onnxruntime"])
         run([sys.executable, "-m", "onnx2tf", "-i", quant, "-o", tb_dir, "-b", "1",
              "--non_verbose"])
-        shutil.copyfile(os.path.join(tb_dir, "migan_quant_float32.tflite"), dest)
-        print(f"[export_migan] wrote {dest} {os.path.getsize(dest) / 1e6:.2f} MB")
+        # onnx2tf always emits float32 and float16; float32 was 28.8 MB and
+        # busts the 25 MB per-model cap (D8), so pick the smallest variant that
+        # fits, preferring a quantised one over float16 over float32.
+        picked = pick_tflite(tb_dir, cap_bytes=25 * 1024 * 1024)
+        if picked is None:
+            print("[export_migan] no tflite variant fits the 25 MB cap", file=sys.stderr)
+            return 1
+        shutil.copyfile(picked, dest)
+        print(f"[export_migan] wrote {dest} {os.path.getsize(dest) / 1e6:.2f} MB (from {os.path.basename(picked)})")
         return 0
     except Exception as exc:  # noqa: BLE001
         print(f"[export_migan] onnx2tf failed ({exc})", file=sys.stderr)
