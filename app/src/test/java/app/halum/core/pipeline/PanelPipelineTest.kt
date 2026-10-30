@@ -75,7 +75,7 @@ class PanelPipelineTest {
         val b = listOf(bubble(0f, 0f, 100f, 80f))
 
         // The chatbot returned nothing for the only block.
-        val result = pipeline(ocr, b) { null }.process(panel)
+        val result = pipeline(ocr, b) { listOf<String?>(null) }.process(panel)
 
         assertTrue(result.placements.isEmpty())
         assertEquals(1, result.bubbles)

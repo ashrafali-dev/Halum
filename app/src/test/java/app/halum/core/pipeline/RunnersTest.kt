@@ -168,7 +168,7 @@ class ScanChapterRunnerTest {
                 perPanel = { result(1) },
                 translator =
                     object : ScanChapterRunner.ChapterTranslator {
-                        override fun translateChapter(prompt: String) = emptyList()
+                        override fun translateChapter(prompt: String): List<String?> = emptyList()
                     },
                 sink = sink,
             )
@@ -213,7 +213,7 @@ class ScanChapterRunnerTest {
                 perPanel = { error("must not run") },
                 translator =
                     object : ScanChapterRunner.ChapterTranslator {
-                        override fun translateChapter(prompt: String) = emptyList()
+                        override fun translateChapter(prompt: String): List<String?> = emptyList()
                     },
                 sink = sink,
             )
