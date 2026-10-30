@@ -32,6 +32,30 @@ object AdBlockRules {
             "/segment.io/",
         )
 
+    /**
+     * Bare host labels, matched anywhere in the URL. Needed because ad hosts
+     * often appear without the surrounding slashes a path marker expects
+     * (e.g. `cdn.taboola.com/libtrc/...`), so a pure path rule misses them.
+     */
+    val BLOCK_HOSTS =
+        listOf(
+            "googlesyndication.com",
+            "doubleclick.net",
+            "google-analytics.com",
+            "googletagmanager.com",
+            "amazon-adsystem.com",
+            "adsrvr.org",
+            "criteo.com",
+            "criteo.net",
+            "taboola.com",
+            "outbrain.com",
+            "scorecardresearch.com",
+            "quantserve.com",
+            "hotjar.com",
+            "mixpanel.com",
+            "segment.io",
+        )
+
     /** Hosts that must never be blocked — they carry manga panels. */
     val ALLOW_HOSTS =
         listOf(
@@ -62,6 +86,7 @@ object AdBlockRules {
             return Decision(false, Reason.SAME_HOST)
         }
         if (BLOCK_MARKERS.any { lower.contains(it) }) return Decision(true, Reason.AD_CDN)
+        if (BLOCK_HOSTS.any { lower.contains(it) }) return Decision(true, Reason.AD_CDN)
         return Decision(false, Reason.NOT_AD)
     }
 

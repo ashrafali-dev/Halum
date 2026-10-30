@@ -58,10 +58,10 @@ class AdBlockWebViewClient(
         delegate?.onPageFinished(view, url)
         if (!enabled()) return
         applyDomLayers(view)
-        Log.i(
-            TAG,
-            "ADBLOCK_SUMMARY: net_blocked=$netBlocked css_rules=${CSS.size} scripts_removed=$SCRIPTS.size rollback=false",
-        )
+        val summary =
+            "ADBLOCK_SUMMARY: net_blocked=$netBlocked css_rules=${CSS.size} " +
+                "scripts_removed=${SCRIPTS.size} rollback=false"
+        Log.i(TAG, summary)
     }
 
     /** Layers 2 + 3 with the panel-count safety net around layer 2. */

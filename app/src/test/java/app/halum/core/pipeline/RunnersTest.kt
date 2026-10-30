@@ -192,7 +192,9 @@ class ScanChapterRunnerTest {
                     object : ScanChapterRunner.ChapterTranslator {
                         override fun translateChapter(prompt: String): List<String?> {
                             sawSheet = prompt.contains("철수 = Chul-soo")
-                            return listOf("পূরণ")
+                            // Two untranslated bubbles (one per panel) arrive as
+                            // one batch; return one translation per block.
+                            return listOf("পূরণ", "পূরণ২")
                         }
                     },
                 sink = sink,

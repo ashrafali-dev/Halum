@@ -59,7 +59,9 @@ class PanelPipelineTest {
         val result =
             pipeline(ocr, b) { blocks ->
                 seen = blocks
-                listOf("[1] হ্যালো বিশ্ব")
+                // The translator returns already-parsed text; marker parsing
+                // is ChatBridge's job, not the pipeline's.
+                listOf("হ্যালো বিশ্ব")
             }.process(panel)
 
         assertEquals(listOf("こんにちは 世界"), seen)
