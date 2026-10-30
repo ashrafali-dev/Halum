@@ -112,7 +112,9 @@ class ChatBridgeTest {
         // must never end up painted on the page (D6 fallback, bounded).
         val page = FakePage({ "I'm sorry, I can't help with that." })
         val out = bridge(page).translate(listOf("one"))
-        println("DIAG refusal: state=${out.state} missing=${out.missing} attempts=${out.attempts} injected=${page.injected.size}")
+        println(
+            "DIAG refusal: state=${out.state} missing=${out.missing} attempts=${out.attempts} injected=${page.injected.size}",
+        )
         assertEquals(ChatBridge.State.FAILED, out.state)
         assertEquals(listOf(0), out.missing)
         assertTrue("ladder is bounded", out.attempts <= ChatBridge.MAX_RETRIES * 2)
@@ -131,7 +133,9 @@ class ChatBridgeTest {
                 }
             })
         val out = bridge(page).translate(listOf("one", "two"))
-        println("DIAG partial: state=${out.state} t=${out.translations} missing=${out.missing} injected=${page.injected}")
+        println(
+            "DIAG partial: state=${out.state} t=${out.translations} missing=${out.missing} injected=${page.injected}",
+        )
         assertEquals(ChatBridge.State.DONE, out.state)
         assertEquals(listOf("এক", "দুই"), out.translations)
         assertTrue("fallback sends happened", page.injected.size > 1)
