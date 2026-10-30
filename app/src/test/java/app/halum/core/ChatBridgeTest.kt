@@ -20,6 +20,13 @@ private class FakePage(
     private var reply: String? = null
     private var pending: String? = null
 
+    /**
+     * The DOM update that carries the answer lands one poll after inject().
+     * Consuming the script inside inject() would make sendAwait read the
+     * previous conversation's reply and think the new one had already arrived.
+     */
+    private var pendingVisible = false
+
     override fun isReady(): Boolean {
         polls++
         return polls > readyAfterPolls
@@ -28,17 +35,16 @@ private class FakePage(
     override fun inject(text: String) {
         injected += text
         pending = script(text)
+        pendingVisible = false
     }
 
     override fun lastReply(): String? {
-        // The reply appears one poll after inject(), as a real DOM update does;
-        // consuming it inside inject() would make sendAwait think the previous
-        // conversation's reply is already new.
-        polls++
-        if (polls % 2 == 0) {
-            pending?.let {
-                reply = it
+        if (pending != null) {
+            if (pendingVisible) {
+                reply = pending
                 pending = null
+            } else {
+                pendingVisible = true
             }
         }
         return reply
@@ -47,6 +53,7 @@ private class FakePage(
     override fun newConversation() {
         reply = null
         pending = null
+        pendingVisible = false
     }
 }
 
