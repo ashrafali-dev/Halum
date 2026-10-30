@@ -124,8 +124,8 @@ class ChatBridgeTest {
                 when {
                     // A batch send answers only the first block.
                     prompt.contains("[1] one") && prompt.contains("[2] two") -> "[1] এক"
-                    // A one-block send is numbered [1] again, so match the body.
-                    prompt.contains("[1] two") -> "[2] দুই"
+                    // A one-block send is renumbered from [1], so match the body.
+                    prompt.contains("[1] two") -> "[1] দুই"
                     prompt.contains("[1] one") -> "[1] এক"
                     else -> null
                 }
