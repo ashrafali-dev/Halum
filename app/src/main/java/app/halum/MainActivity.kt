@@ -53,7 +53,9 @@ class MainActivity : AppCompatActivity() {
     private var lastOverlayScrollY = 0
 
     /** One pipeline run at a time; a second tap is ignored, not queued. */
-    private val busy = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val busy =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
 
     /** True between Start and Stop; scrolling triggers work only in this state. */
     private var running = false

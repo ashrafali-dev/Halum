@@ -51,7 +51,8 @@ class AndroidPanelPipeline(
                             // the allocation that OOMs a 192 MB heap.
                             detections.map { d ->
                                 PanelPipeline.DetectedBubble(
-                                    app.halum.core.BubbleClassifier.Box(d.x1, d.y1, d.x2, d.y2),
+                                    app.halum.core.BubbleClassifier
+                                        .Box(d.x1, d.y1, d.x2, d.y2),
                                     ByteArray(0),
                                 )
                             }
