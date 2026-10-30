@@ -35,25 +35,8 @@ object ResponseParser {
         val raw = reply.lines().filter { it.isNotBlank() }
         val lines = raw.map { it.trim() }
 
-        val byMarker = mutableMapOf<Int, StringBuilder>()
-        var sawMarker = false
-        for ((line, original) in lines.zip(raw)) {
-            val m = MARKER.find(line)
-            if (m != null) {
-                sawMarker = true
-                val n = m.groupValues[1].toIntOrNull()
-                val text = m.groupValues[2].trim()
-                if (n != null && n in 1..blockCount) {
-                    byMarker.getOrPut(n) { StringBuilder() }
-                    if (text.isNotEmpty()) byMarker.getValue(n).appendText(text)
-                }
-            } else if (original.startsWith(" ") || original.startsWith("\t")) {
-                // An indented line continues the block above it; an indented
-                // line before any marker is chat noise and is dropped.
-                byMarker.keys.maxOrNull()?.let { byMarker.getValue(it).appendText(line) }
-            }
-        }
-        if (sawMarker) {
+        val byMarker = collectByMarker(raw, lines, blockCount)
+        if (byMarker != null) {
             val values = (1..blockCount).map { byMarker[it]?.toString() }
             val missing = (1..blockCount).filter { values[it - 1] == null }
             return Result(values, Mode.MARKERS, missing)
@@ -63,6 +46,35 @@ object ResponseParser {
             return Result(lines, Mode.POSITIONAL, emptyList())
         }
         return Result(List(blockCount) { null }, Mode.NONE, (1..blockCount).toList())
+    }
+
+    /**
+     * Marker-numbered lines, or null when the reply carried no marker at all.
+     * An indented line continues the block above it; one before any marker is
+     * chat noise and is dropped.
+     */
+    private fun collectByMarker(
+        raw: List<String>,
+        lines: List<String>,
+        blockCount: Int,
+    ): Map<Int, StringBuilder>? {
+        val byMarker = mutableMapOf<Int, StringBuilder>()
+        var sawMarker = false
+        for ((line, original) in lines.zip(raw)) {
+            val m = MARKER.find(line)
+            if (m != null) {
+                sawMarker = true
+                val n = m.groupValues[1].toIntOrNull()
+                val text = m.groupValues[2].trim()
+                if (n != null && n in 1..blockCount) {
+                    val sb = byMarker.getOrPut(n) { StringBuilder() }
+                    if (text.isNotEmpty()) sb.appendText(text)
+                }
+            } else if (original.startsWith(" ") || original.startsWith("\t")) {
+                byMarker.keys.maxOrNull()?.let { byMarker.getValue(it).appendText(line) }
+            }
+        }
+        return if (sawMarker) byMarker else null
     }
 
     private fun StringBuilder.appendText(text: String) {

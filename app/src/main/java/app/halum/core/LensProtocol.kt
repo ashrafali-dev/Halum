@@ -202,30 +202,27 @@ object LensProtocol {
                 else -> p.skip(tag and 7)
             }
         }
-        val result = mutableListOf<OcrBlock>()
-        for (line in lines) {
-            var text = ""
-            var lineBox: FloatArray? = null
-            val words = mutableListOf<Pair<String, String>>()
-            while (line.hasMore()) {
-                val tag = line.readTag()
-                when (tag ushr 3) {
-                    1 -> words.add(decodeWord(line.readLengthDelimited()))
-                    2 -> lineBox = decodeGeometry(line.readLengthDelimited())
-                    else -> line.skip(tag and 7)
-                }
-            }
-            text = joinWords(words)
-            if (text.isEmpty()) continue
+        return lines.mapNotNull { line ->
+            val (text, lineBox) = decodeLine(line)
+            if (text.isEmpty()) return@mapNotNull null
             val box = lineBox ?: paragraphBox ?: FloatArray(4) { 0f }
-            result +=
-                OcrBlock(
-                    text = text,
-                    bbox = toPixels(box, width, height),
-                    script = paragraphLang,
-                )
+            OcrBlock(text = text, bbox = toPixels(box, width, height), script = paragraphLang)
         }
-        return result
+    }
+
+    /** Text joined from the line's words, plus the line's own box if it has one. */
+    private fun decodeLine(line: Reader): Pair<String, FloatArray?> {
+        var lineBox: FloatArray? = null
+        val words = mutableListOf<Pair<String, String>>()
+        while (line.hasMore()) {
+            val tag = line.readTag()
+            when (tag ushr 3) {
+                1 -> words.add(decodeWord(line.readLengthDelimited()))
+                2 -> lineBox = decodeGeometry(line.readLengthDelimited())
+                else -> line.skip(tag and 7)
+            }
+        }
+        return joinWords(words) to lineBox
     }
 
     /** Word: 2 = plain text, 3 = text separator (chrome-lens-ocr join rule). */
@@ -259,30 +256,26 @@ object LensProtocol {
     private fun decodeGeometry(g: Reader): FloatArray? {
         while (g.hasMore()) {
             val tag = g.readTag()
-            if (tag ushr 3 == 1) {
-                val box = g.readLengthDelimited()
-                val v = FloatArray(6)
-                while (box.hasMore()) {
-                    val btag = box.readTag()
-                    val field = btag ushr 3
-                    if (field in 1..6 && btag and 7 == Proto.WIRE_FIXED32) {
-                        v[field - 1] = box.readFixed32()
-                    } else {
-                        box.skip(btag and 7)
-                    }
-                }
-                // 0/1 = normalized, 2 = already image pixels.
-                return if (v[5].toInt() == COORD_NORMALIZED.toInt() || v[5] == 0f) {
-                    v
-                } else {
-                    // Image coords: emit as normalised so toPixels is uniform.
-                    null
-                }
-            } else {
-                g.skip(tag and 7)
-            }
+            if (tag ushr 3 == 1) return decodeBoundingBox(g.readLengthDelimited())
+            g.skip(tag and 7)
         }
         return null
+    }
+
+    /** Null unless the box is in normalised coordinates (toPixels is uniform). */
+    private fun decodeBoundingBox(b: Reader): FloatArray? {
+        val v = FloatArray(6)
+        while (b.hasMore()) {
+            val btag = b.readTag()
+            val field = btag ushr 3
+            if (field in 1..6 && btag and 7 == Proto.WIRE_FIXED32) {
+                v[field - 1] = b.readFixed32()
+            } else {
+                b.skip(btag and 7)
+            }
+        }
+        // 0/1 = normalized, 2 = already image pixels.
+        return if (v[5].toInt() == COORD_NORMALIZED.toInt() || v[5] == 0f) v else null
     }
 
     private fun toPixels(

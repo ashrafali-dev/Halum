@@ -59,10 +59,16 @@ object Proto {
 
         fun readLengthDelimited(): Reader {
             val len = readVarint()
-            if (len < 0 || len > end - pos) throw ProtoException("length $len exceeds $end-$pos at $pos")
-            val sub = Reader(buf, pos, pos + len.toInt())
+            advance(len, "length")
+            return Reader(buf, pos - len.toInt(), pos)
+        }
+
+        /** Bounds-checked forward move; the single place that rejects truncation. */
+        private fun advance(len: Long, what: String) {
+            if (len < 0 || len > end - pos) {
+                throw ProtoException("$what $len exceeds ${end - pos} remaining at $pos")
+            }
             pos += len.toInt()
-            return sub
         }
 
         fun readString(): String = String(readLengthDelimited().toByteArray(), Charsets.UTF_8)
@@ -72,19 +78,12 @@ object Proto {
         fun skip(wireType: Int) {
             when (wireType) {
                 WIRE_VARINT -> readVarint()
-                WIRE_FIXED64 -> {
-                    if (pos + 8 > end) throw ProtoException("truncated fixed64")
-                    pos += 8
-                }
+                WIRE_FIXED64 -> advance(8, "fixed64")
                 WIRE_LEN -> {
                     val len = readVarint()
-                    if (len < 0 || len > end - pos) throw ProtoException("bad skip length")
-                    pos += len.toInt()
+                    advance(len, "skip length")
                 }
-                WIRE_FIXED32 -> {
-                    if (pos + 4 > end) throw ProtoException("truncated fixed32")
-                    pos += 4
-                }
+                WIRE_FIXED32 -> advance(4, "fixed32")
                 else -> throw ProtoException("unsupported wire type $wireType")
             }
         }
