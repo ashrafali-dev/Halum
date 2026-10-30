@@ -183,7 +183,9 @@ class MainActivity : AppCompatActivity() {
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
             return CookieManager.getInstance().getCookie(LensPort.HOST).orEmpty()
         }
-        val out = java.util.concurrent.atomic.AtomicReference("")
+        val out =
+            java.util.concurrent.atomic
+                .AtomicReference("")
         val latch = java.util.concurrent.CountDownLatch(1)
         runOnUiThread {
             out.set(CookieManager.getInstance().getCookie(LensPort.HOST).orEmpty())
