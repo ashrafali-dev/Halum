@@ -28,6 +28,9 @@
     <string name="error_lens_unavailable">OCR unavailable</string>
     <string name="error_capture_failed">Could not capture the page</string>
     <string name="error_ocr_failed">OCR failed — check the log</string>
+    <string name="error_no_bubbles">No bubbles detected on this panel</string>
+    <string name="error_no_text">Bubbles found, but no text was read</string>
+    <string name="error_no_translation">Text read, but the chat gave no translation</string>
     <string name="progress_ocr">Reading the panel…</string>
     <string name="action_start">Start</string>
     <string name="action_stop">Stop</string>

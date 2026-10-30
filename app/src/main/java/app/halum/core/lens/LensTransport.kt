@@ -10,8 +10,18 @@ import app.halum.core.LensProtocol
  * decode path are all unit-testable without a socket.
  */
 interface LensTransport {
-    /** Raw `LensOverlayServerResponse` bytes. Throws [TransportException]. */
-    fun post(bytes: ByteArray): ByteArray
+    /**
+     * Raw `LensOverlayServerResponse` bytes. Throws [TransportException].
+     *
+     * [width]/[height] are the panel's pixel size and must reach the wire as
+     * `processed_image_dimensions`; sending 0,0 asks Lens to OCR an image it
+     * does not have.
+     */
+    fun post(
+        bytes: ByteArray,
+        width: Int,
+        height: Int,
+    ): ByteArray
 
     class TransportException(
         message: String,
@@ -26,7 +36,11 @@ class ReplayTransport(
 ) : LensTransport {
     private var next = 0
 
-    override fun post(bytes: ByteArray): ByteArray {
+    override fun post(
+        bytes: ByteArray,
+        width: Int,
+        height: Int,
+    ): ByteArray {
         if (fixtures.isEmpty()) throw LensTransport.TransportException("no replay fixtures")
         return fixtures[next++ % fixtures.size]
     }
@@ -80,7 +94,7 @@ class LensOcrClient(
         repeat(maxAttempts) { attempt ->
             try {
                 limiter.acquire()
-                val response = transport.post(body)
+                val response = transport.post(body, imageWidth, imageHeight)
                 return LensProtocol.decode(response, imageWidth, imageHeight)
             } catch (e: LensTransport.TransportException) {
                 last = e

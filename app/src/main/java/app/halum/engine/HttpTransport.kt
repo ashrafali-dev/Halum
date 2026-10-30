@@ -22,8 +22,13 @@ class HttpTransport(
     private val storeCookies: (String) -> Unit = {},
     private val timeoutMs: Int = 30_000,
 ) : LensTransport {
-    override fun post(bytes: ByteArray): ByteArray {
-        val body = UploadBody.build(bytes, 0, 0)
+    override fun post(
+        bytes: ByteArray,
+        width: Int,
+        height: Int,
+    ): ByteArray {
+        // Lens needs the real dimensions; 0,0 made it answer for an empty image.
+        val body = UploadBody.build(bytes, width, height)
         val conn = (URL("$endpoint?stcs=${authTime()}").openConnection() as HttpURLConnection)
         try {
             conn.requestMethod = "POST"

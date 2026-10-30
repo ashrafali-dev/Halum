@@ -44,11 +44,35 @@ class LensOcrClientTest {
     }
 
     @Test
+    fun `the panel size reaches the transport`() {
+        var seen: Pair<Int, Int>? = null
+        val transport =
+            object : LensTransport {
+                override fun post(
+                    bytes: ByteArray,
+                    width: Int,
+                    height: Int,
+                ): ByteArray {
+                    seen = width to height
+                    return fixture("lens_ko")
+                }
+            }
+
+        LensOcrClient(transport).recognize(request(), 800, 1200)
+
+        assertEquals(800 to 1200, seen)
+    }
+
+    @Test
     fun `a transient failure is retried once`() {
         var calls = 0
         val transport =
             object : LensTransport {
-                override fun post(bytes: ByteArray): ByteArray {
+                override fun post(
+                    bytes: ByteArray,
+                    width: Int,
+                    height: Int,
+                ): ByteArray {
                     calls++
                     if (calls == 1) throw LensTransport.TransportException("boom", 503)
                     return fixture("lens_ko")
@@ -66,7 +90,11 @@ class LensOcrClientTest {
         var calls = 0
         val transport =
             object : LensTransport {
-                override fun post(bytes: ByteArray): ByteArray {
+                override fun post(
+                    bytes: ByteArray,
+                    width: Int,
+                    height: Int,
+                ): ByteArray {
                     calls++
                     throw LensTransport.TransportException("bad request", 400)
                 }

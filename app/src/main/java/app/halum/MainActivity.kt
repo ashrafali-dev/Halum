@@ -195,7 +195,16 @@ class MainActivity : AppCompatActivity() {
                             p.process(bitmap)
                         }.onFailure { Log.e(TAG, "PIPE_FAILED", it) }
                     bitmap.recycle()
-                    finishRun { deliver(outcome.getOrNull()) }
+                    val failure = outcome.exceptionOrNull()
+                    finishRun {
+                        if (failure != null) {
+                            // Say what broke; a silent "OCR unavailable" is
+                            // indistinguishable from a no-op.
+                            deliverFailure(failure)
+                        } else {
+                            deliver(outcome.getOrNull())
+                        }
+                    }
                 }
             },
             onFailed = { finishRun { setProgress(0, getString(R.string.error_capture_failed)) } },
@@ -229,6 +238,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun deliverFailure(e: Throwable) {
+        val why = "${e.javaClass.simpleName}: ${e.message ?: "no message"}"
+        Log.e(TAG, "PIPE_FAILED: $why")
+        setProgress(0, why.take(80))
+        Toast.makeText(this, why.take(200), Toast.LENGTH_LONG).show()
+    }
+
     private fun deliver(outcome: AndroidPanelPipeline.PanelOutcome?) {
         if (outcome == null) {
             setProgress(0, getString(R.string.error_ocr_failed))
@@ -251,8 +267,24 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         binding.overlay.show(placements, binding.mainWebView.scrollY)
+        Log.i(
+            TAG,
+            "OVERLAY_PLACED: count=${placements.size} bubbles=${outcome.bubbles} " +
+                "ocr=${outcome.ocrBlocks} translated=${outcome.translated} scale=${"%.2f".format(sx)}",
+        )
+        if (placements.isEmpty()) {
+            // Distinguish "found nothing to translate" from "everything worked".
+            val why =
+                when {
+                    outcome.bubbles == 0 -> getString(R.string.error_no_bubbles)
+                    outcome.ocrBlocks == 0 -> getString(R.string.error_no_text)
+                    else -> getString(R.string.error_no_translation)
+                }
+            setProgress(0, why)
+            Toast.makeText(this, why, Toast.LENGTH_LONG).show()
+            return
+        }
         setProgress(100, getString(R.string.progress_panel, outcome.placements.size, outcome.bubbles))
-        Log.i(TAG, "OVERLAY_PLACED: count=${placements.size} scale=${"%.2f".format(sx)}")
     }
 
     /**
