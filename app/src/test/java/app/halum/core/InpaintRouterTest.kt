@@ -1,7 +1,7 @@
 package app.halum.core
 
-import app.halum.core.InpaintRouter.Mask
 import app.halum.core.InpaintRouter.Method
+import app.halum.core.InpaintRouter.Mask
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

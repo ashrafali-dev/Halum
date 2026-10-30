@@ -79,16 +79,15 @@ class ChatBridgeTest {
 
     @Test
     fun `never-ready page times out instead of injecting`() {
-        val page =
-            object : ChatBridge.ChatPage {
-                override fun isReady() = false
+        val page = object : ChatBridge.ChatPage {
+            override fun isReady() = false
 
-                override fun inject(text: String) = error("must not inject before ready")
+            override fun inject(text: String) = error("must not inject before ready")
 
-                override fun lastReply(): String? = null
+            override fun lastReply(): String? = null
 
-                override fun newConversation() = Unit
-            }
+            override fun newConversation() = Unit
+        }
         val out = bridge(page).translate(listOf("one"))
         assertEquals(ChatBridge.State.TIMED_OUT, out.state)
     }
@@ -107,13 +106,13 @@ class ChatBridgeTest {
     @Test
     fun `partial reply falls back to one block per send`() {
         val page =
-            FakePage { prompt ->
+            FakePage({ prompt ->
                 when {
                     prompt.contains("[2] two") -> "[2] দুই"
                     prompt.contains("[1] one") -> "[1] এক"
                     else -> "[1] এক" // batch send: block 2 missing
                 }
-            }
+            })
         val out = bridge(page).translate(listOf("one", "two"))
         assertEquals(ChatBridge.State.DONE, out.state)
         assertEquals(listOf("এক", "দুই"), out.translations)
@@ -124,18 +123,17 @@ class ChatBridgeTest {
     fun `cancellation is observed while awaiting the reply`() {
         val clock = FakeClock()
         lateinit var b: ChatBridge
-        val page =
-            object : ChatBridge.ChatPage {
-                override fun isReady() = true
+        val page = object : ChatBridge.ChatPage {
+            override fun isReady() = true
 
-                override fun inject(text: String) {
-                    b.cancel()
-                }
-
-                override fun lastReply(): String? = null
-
-                override fun newConversation() = Unit
+            override fun inject(text: String) {
+                b.cancel()
             }
+
+            override fun lastReply(): String? = null
+
+            override fun newConversation() = Unit
+        }
         b = ChatBridge(page, clock)
         val out = b.translate(listOf("one"))
         assertEquals(ChatBridge.State.CANCELLED, out.state)
@@ -145,10 +143,10 @@ class ChatBridgeTest {
     fun `multiple batches are sent separately and keep order`() {
         val blocks = List(10) { "b$it" }
         val page =
-            FakePage { prompt ->
+            FakePage({ prompt ->
                 val count = Regex("""^\[(\d+)]""", RegexOption.MULTILINE).findAll(prompt).count()
                 (1..count).joinToString("\n") { "[$it] t$it" }
-            }
+            })
         val out = bridge(page).translate(blocks)
         assertEquals(ChatBridge.State.DONE, out.state)
         assertEquals(2, page.injected.size) // 8 + 2
