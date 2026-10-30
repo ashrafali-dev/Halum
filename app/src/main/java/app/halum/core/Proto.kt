@@ -64,7 +64,10 @@ object Proto {
         }
 
         /** Bounds-checked forward move; the single place that rejects truncation. */
-        private fun advance(len: Long, what: String) {
+        private fun advance(
+            len: Long,
+            what: String,
+        ) {
             if (len < 0 || len > end - pos) {
                 throw ProtoException("$what $len exceeds ${end - pos} remaining at $pos")
             }
