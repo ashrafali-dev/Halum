@@ -92,7 +92,7 @@ class PanelPipeline(
         val perBubbleText =
             grouped.map { b ->
                 b.lineIndices
-                    .sortedBy { readingKey(ocr[it]) }
+                    .sortedWith(compareBy({ ocr[it].bbox[1] }, { ocr[it].bbox[0] }))
                     .joinToString(" ") { ocr[it].text.trim() }
                     .trim()
             }
@@ -129,9 +129,8 @@ class PanelPipeline(
     }
 
     /**
-     * Top-to-bottom, then left-to-right, so a bubble's lines are joined in the
-     * order a reader takes them. Reading direction beyond this is decided by
-     * the caller before it hands us the crop (D15).
+     * Lines are joined top-to-bottom, then left-to-right (the D15 default).
+     * Reading direction beyond this is decided by the caller before it hands us
+     * the crop.
      */
-    private fun readingKey(block: OcrBlock): Pair<Float, Float> = block.bbox[1] to block.bbox[0]
 }
