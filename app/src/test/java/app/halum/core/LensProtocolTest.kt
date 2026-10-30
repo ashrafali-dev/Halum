@@ -17,8 +17,7 @@ class LensProtocolTest {
     private fun fixture(name: String): ByteArray = File(fixturesDir, name).readBytes()
 
     // org.json:json is a unit-test dependency; android.jar's copy throws.
-    private fun expected(name: String): JSONObject =
-        JSONObject(File(fixturesDir, name).readText())
+    private fun expected(name: String): JSONObject = JSONObject(File(fixturesDir, name).readText())
 
     private val fixturesDir: File
         get() {
@@ -132,7 +131,8 @@ class LensProtocolTest {
         // client); wrap it in a real ServerResponse and add future fields.
         val jspb = fixture("lens_ko.bin")
         val wrapped =
-            Proto.Writer()
+            Proto
+                .Writer()
                 .writeMessage(2, jspb) // objects_response
                 .writeString(5, "future-field")
                 .writeVarint(9, 3)
@@ -142,7 +142,8 @@ class LensProtocolTest {
         val inner = Proto.Reader(jspb)
         val textField = inner.readLengthDelimited() // objectsResponse.text = 3
         val objects =
-            Proto.Writer()
+            Proto
+                .Writer()
                 .writeMessage(11, byteArrayOf(1, 2)) // future field
                 .writeMessage(3, textField.toByteArray())
                 .toByteArray()
