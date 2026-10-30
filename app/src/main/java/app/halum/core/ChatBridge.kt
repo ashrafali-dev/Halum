@@ -100,7 +100,7 @@ class ChatBridge(
         for (batch in BatchPlanner.plan(blocks)) {
             val batchTexts = batch.indices.map { blocks[it] }
             var batchOutcome: List<String?>? = null
-            repeat(MAX_RETRIES) {
+            for (tryNo in 0 until MAX_RETRIES) {
                 if (cancelled) return finish(State.CANCELLED, results.asList(), attempts)
                 attempts++
                 val reply = sendAwait(PromptBuilder.build(batchTexts))
