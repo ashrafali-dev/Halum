@@ -97,6 +97,66 @@ def onnx_to_tflite(onnx_path: str, work_dir: str) -> str:
     return chosen
 
 
+def flatten_pad_pads(onnx_path: str, out_path: str) -> int:
+    """Rewrite every Pad's paddings initializer from [rank,2] to flat [2*rank].
+
+    Ultralytics' opset-18 export emits 2-D paddings. onnx2tf carries that shape
+    straight into the TFLite PAD op, and tensorflow-lite 2.16.1 (the version
+    the APK ships) refuses to prepare it:
+
+      pad.cc:123 SizeOfDimension(op_context->paddings, 0) != op_context->dims
+      (4 != 1)
+
+    ONNX accepts both layouts when `axes` is set, and TFLite only accepts the
+    flat one, so flattening here is lossless. Returns how many were rewritten.
+    """
+    import numpy as np
+    import onnx
+    from onnx import numpy_helper
+
+    model = onnx.load(onnx_path)
+    graph = model.graph
+
+    inits = {i.name: i for i in graph.initializer}
+    # Supplies values without putting initializers in the graph repeatedly.
+    changed = 0
+    for node in graph.node:
+        if node.op_type != "Pad" or len(node.input) < 2:
+            continue
+        pads_name = node.input[1]
+        init = inits.get(pads_name)
+        if init is None:
+            continue  # dynamic pads: cannot reshape a computed tensor here
+        arr = numpy_helper.to_array(init)
+        if arr.ndim != 2:
+            continue
+        rank = arr.shape[0]
+        flat = np.ascontiguousarray(arr.reshape(-1).astype(arr.dtype))
+        new_init = numpy_helper.from_array(flat, name=pads_name + "__flat")
+        graph.initializer.append(new_init)
+        node.input[1] = pads_name + "__flat"
+
+        # Without `axes`, Pad applies paddings to the leading dims, which is
+        # different semantics once flattened. Pin them explicitly.
+        if len(node.input) < 4 or not node.input[3]:
+            axes = np.arange(rank, dtype=np.int64)
+            axes_name = pads_name + "__axes"
+            graph.initializer.append(numpy_helper.from_array(axes, name=axes_name))
+            while len(node.input) < 4:
+                node.input.append("")
+            node.input[3] = axes_name
+        changed += 1
+
+    # Drop initializers nobody references any more (the 2-D originals).
+    used = {i for n in graph.node for i in n.input if i}
+    keep = [i for i in graph.initializer if i.name in used]
+    del graph.initializer[:]
+    graph.initializer.extend(keep)
+
+    onnx.save(model, out_path)
+    return changed
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pt", required=True)
@@ -111,7 +171,13 @@ def main() -> int:
         print(f"[export_bubble] reusing {onnx_path}")
     else:
         onnx_path = yolo_to_onnx(args.pt, args.work)
-    tflite = onnx_to_tflite(onnx_path, args.work)
+
+    # Conversion input only; integration_test.py keeps using the original ONNX.
+    flat_path = os.path.join(args.work, "bubble_flatpads.onnx")
+    rewritten = flatten_pad_pads(onnx_path, flat_path)
+    print(f"[export_bubble] flattened paddings on {rewritten} Pad nodes -> {flat_path}")
+
+    tflite = onnx_to_tflite(flat_path, args.work)
     dest = os.path.join(args.out, "bubble.tflite")
     shutil.copyfile(tflite, dest)
     print(f"[export_bubble] wrote {dest} {os.path.getsize(dest) / 1e6:.2f} MB")
