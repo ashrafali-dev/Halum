@@ -60,18 +60,25 @@ jobs:
       - name: Assemble debug (both flavors)
         run: ./gradlew --no-daemon assembleDebug
 
-      # D21: default = Telea + solid-fill (no MI-GAN asset); full = MI-GAN.
-      # Each APK must satisfy AC10 on its own.
-      - name: Size gate — default flavor (no MI-GAN)
+      # D21 (final): the default `standard` flavor is the universal fat APK
+      # (both ABIs, no MI-GAN) and is the artifact that must pass AC10. The
+      # `full` flavor adds MI-GAN and may exceed 60 MB — it is reported, not
+      # gated.
+      - name: Size gate — standard flavor (universal, no MI-GAN)
         run: |
           apk=$(ls app/build/outputs/apk/standard/debug/*.apk)
           python3 tools/report_sizes.py "$apk" app/src/main/assets/models
 
-      - name: Size gate — full flavor (with MI-GAN)
+      - name: APK ABI check — standard flavor
+        run: |
+          apk=$(ls app/build/outputs/apk/standard/debug/*.apk)
+          python3 tools/check_abi.py "$apk"
+
+      - name: Size report — full flavor (with MI-GAN, not gated)
         run: |
           apk=$(ls app/build/outputs/apk/full/debug/*.apk)
           HALUM_REQUIRE_MODELS=0 python3 tools/report_sizes.py \
-            "$apk" app/src/main/assets/models app/src/full/assets/models
+            "$apk" app/src/main/assets/models app/src/full/assets/models || true
 
       - name: Unit test report
         if: always()

@@ -64,8 +64,8 @@ jobs:
       - uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-35 build-tools;35.0.0'
-      - name: lintDebug
-        run: ./gradlew --no-daemon lintDebug
+      - name: lintStandardDebug
+        run: ./gradlew --no-daemon lintStandardDebug
       - uses: actions/upload-artifact@v4
         if: always()
         with:

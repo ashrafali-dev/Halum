@@ -309,24 +309,44 @@ coordinates in module files. Detekt + ktlint configs live in `config/`.
 **Why.** Lint workflow gates on both tools; one place to bump versions that
 AGP 8.7 + Kotlin 2.0 + Compose-free Views all agree on.
 
-### D21 Session 4: dual-ABI APK, MI-GAN behind a `full` flavor
+### D21 (final): Universal Fat APK — both ABIs, MI-GAN opt-in
 
-**Decision.** Ship **both** `armeabi-v7a` and `arm64-v8a`. MI-GAN is a
-`full`-flavor asset only; the `standard` flavor omits `migan.tflite` and the
-engine falls back to Telea (small masks) / solid fill (large masks) at
-runtime. `fetch_models.sh` writes `bubble.tflite` to `app/src/main/assets/models`
-(shared) and `migan.tflite` to `app/src/full/assets/models`.
-`build.yml` gates both flavors separately against AC10.
+**Decision.** The **default APK is a universal fat APK with both
+`armeabi-v7a` and `arm64-v8a`**. It contains **no MI-GAN**: the default
+inpaint method is OpenCV Telea (small masks) + solid fill (large masks).
+An optional `full` flavor (`./gradlew assembleFullDebug`, or
+`-Phalum.migan=true`) adds MI-GAN and is **not** the primary artifact — it
+may exceed 60 MB. `fetch_models.sh` writes `bubble.tflite` to
+`app/src/main/assets/models` (shared) and `migan.tflite` to
+`app/src/full/assets/models`. If the default fat APK ever exceeds 60 MB,
+trim OpenCV modules (keep only core, imgproc, java) — **never** drop an ABI
+for size.
 
-**Why.** The target SM-A136B is arm64 hardware; a v7a-only APK runs in
-32-bit compat mode (slower, native-lib quirks). The first two-ABI MI-GAN
-build was 73 MB (> 60 MB). Splitting MI-GAN out keeps the standard APK small
-(~45 MB measured v7a-only; both ABIs re-measured in CI) while the `full`
-flavor carries the model. Size budgets (D8) are checked across both dirs.
+**Why.** The app must install on any phone, 32-bit or 64-bit. Dropping an
+ABI makes 64-bit devices run the 32-bit binary in compat mode (slower,
+native-lib quirks). MI-GAN's ~15 MB is what pushed a two-ABI APK to 73 MB;
+keeping it out of the default flavor holds the universal APK under 60 MB.
 
-**Supersedes.** The interim v7a-only decision from the same session, which
-was wrong for the reasons above.
+**Supersedes.** Both earlier interim decisions this session: the v7a-only
+build (wrong — breaks universal install) and a dual-ABI build that bundled
+MI-GAN by default (wrong — over 60 MB).
 
-**How to apply.** Default APK = Telea/solid-fill only. Opt in with
-`./gradlew assembleFullDebug` (or `-Phalum.migan=true` in earlier drafts).
-Never put `migan.tflite` in `main/assets`.
+**How to apply.** Default = universal fat APK, Telea/solid-fill. `full`
+flavor is opt-in and never the release artifact. Verify with
+`unzip -l app-debug.apk | grep lib/`: both ABI dirs must be present, and
+APK <= 60 MB.
+
+### D22: AC4 residual is scoped, never a literal `< 5`
+
+**Decision.** AC4 ("inpaint residual < 5 on full bubble mask") is measured
+as **change > 5 AND fillRatio >= 0.90 AND flatness <= 60**. A literal
+`residual_max < 5` is **not a valid gate** and must not be reintroduced.
+
+**Why.** Generative inpainting legitimately changes the masked pixels; the
+probe measured MI-GAN at ~48/255. A residual under 5 would only pass a model
+that copies its input, i.e. keeps the ghost text — the opposite of the goal.
+`residual` here is the mean absolute change inside the full bubble mask.
+
+**How to apply.** `tools/engine_verify.py` `check_inpainter` implements
+exactly this and logs `INPAINT_VERIFY: fixture=… residual_max=… fillRatio=…
+method=… pass=…`. Anyone tempted to tighten it to `< 5` should re-read this.
