@@ -59,17 +59,19 @@ class ScanChapterRunner(
             return empty
         }
 
-        val results = panels.mapIndexed { i, p ->
-            val r = perPanel(p)
-            sink.onPanel(i + 1, panels.size, r.placements)
-            r
-        }
+        val results =
+            panels.mapIndexed { i, p ->
+                val r = perPanel(p)
+                sink.onPanel(i + 1, panels.size, r.placements)
+                r
+            }
 
         val placedPerPanel = results.sumOf { it.placements.size }
         val recovered = chapterPass(results, characterSheet, translator, sink)
         val elapsed = clock() - started
         val failures =
-            results.withIndex()
+            results
+                .withIndex()
                 .filter { (_, r) -> r.placements.isEmpty() && r.bubbles > 0 }
                 .map { (i, _) -> "panel ${i + 1}: no placement" }
         val result =

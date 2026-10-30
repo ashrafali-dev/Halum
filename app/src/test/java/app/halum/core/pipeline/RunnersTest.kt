@@ -12,22 +12,25 @@ class RealtimeRunnerTest {
 
     private fun pipeline(placements: Int) =
         PanelPipeline(
-            lens = object : PanelPipeline.LensClient {
-                override fun recognize(panel: PanelPipeline.CapturedPanel) =
-                    List(placements) { OcrBlock("t$it", floatArrayOf(10f, 10f + it * 20f, 90f, 25f + it * 20f)) }
-            },
-            bubbles = object : PanelPipeline.BubbleDetector {
-                override fun detect(panel: PanelPipeline.CapturedPanel) =
-                    List(placements) {
-                        PanelPipeline.DetectedBubble(
-                            BubbleClassifier.Box(0f, it * 20f, 100f, 20f + it * 20f),
-                            ByteArray(100 * 200),
-                        )
-                    }
-            },
-            translator = object : PanelPipeline.Translator {
-                override fun translate(blocks: List<String>) = blocks.map { "বাংলা" }
-            },
+            lens =
+                object : PanelPipeline.LensClient {
+                    override fun recognize(panel: PanelPipeline.CapturedPanel) =
+                        List(placements) { OcrBlock("t$it", floatArrayOf(10f, 10f + it * 20f, 90f, 25f + it * 20f)) }
+                },
+            bubbles =
+                object : PanelPipeline.BubbleDetector {
+                    override fun detect(panel: PanelPipeline.CapturedPanel) =
+                        List(placements) {
+                            PanelPipeline.DetectedBubble(
+                                BubbleClassifier.Box(0f, it * 20f, 100f, 20f + it * 20f),
+                                ByteArray(100 * 200),
+                            )
+                        }
+                },
+            translator =
+                object : PanelPipeline.Translator {
+                    override fun translate(blocks: List<String>) = blocks.map { "বাংলা" }
+                },
             clock = { 0L },
         )
 
@@ -64,20 +67,30 @@ class RealtimeRunnerTest {
         lateinit var runner: RealtimeRunner
         val raced =
             PanelPipeline(
-                lens = object : PanelPipeline.LensClient {
-                    override fun recognize(panel: PanelPipeline.CapturedPanel) =
-                        listOf(OcrBlock("t", floatArrayOf(10f, 10f, 90f, 25f)))
-                },
-                bubbles = object : PanelPipeline.BubbleDetector {
-                    override fun detect(panel: PanelPipeline.CapturedPanel) =
-                        listOf(PanelPipeline.DetectedBubble(BubbleClassifier.Box(0f, 0f, 100f, 40f), ByteArray(100 * 200)))
-                },
-                translator = object : PanelPipeline.Translator {
-                    override fun translate(blocks: List<String>): List<String?> {
-                        runner.cancel()
-                        return listOf("অ")
-                    }
-                },
+                lens =
+                    object : PanelPipeline.LensClient {
+                        override fun recognize(panel: PanelPipeline.CapturedPanel) =
+                            listOf(OcrBlock("t", floatArrayOf(10f, 10f, 90f, 25f)))
+                    },
+                bubbles =
+                    object : PanelPipeline.BubbleDetector {
+                        override fun detect(panel: PanelPipeline.CapturedPanel) =
+                            listOf(
+                                PanelPipeline.DetectedBubble(
+                                    BubbleClassifier.Box(0f, 0f, 100f, 40f),
+                                    ByteArray(
+                                        100 * 200,
+                                    ),
+                                ),
+                            )
+                    },
+                translator =
+                    object : PanelPipeline.Translator {
+                        override fun translate(blocks: List<String>): List<String?> {
+                            runner.cancel()
+                            return listOf("অ")
+                        }
+                    },
                 clock = { 0L },
             )
         runner = RealtimeRunner(raced)
@@ -121,15 +134,18 @@ class ScanChapterRunnerTest {
         untranslated = List(untranslated) { place(text = "src$it") },
     )
 
-    private fun place(text: String = "x") =
-        PanelPipeline.Placement(BubbleClassifier.Box(0f, 0f, 10f, 10f), text, false)
+    private fun place(text: String = "x") = PanelPipeline.Placement(BubbleClassifier.Box(0f, 0f, 10f, 10f), text, false)
 
     private class CollectSink : ScanChapterRunner.Sink {
         var panels = mutableListOf<Int>()
         var retried = -1
         var last: ScanChapterRunner.ChapterResult? = null
 
-        override fun onPanel(index: Int, total: Int, placements: List<PanelPipeline.Placement>) {
+        override fun onPanel(
+            index: Int,
+            total: Int,
+            placements: List<PanelPipeline.Placement>,
+        ) {
             panels += placements.size
         }
 
@@ -150,9 +166,10 @@ class ScanChapterRunnerTest {
                 panels = List(3) { panel() },
                 characterSheet = "",
                 perPanel = { result(1) },
-                translator = object : ScanChapterRunner.ChapterTranslator {
-                    override fun translateChapter(prompt: String) = emptyList()
-                },
+                translator =
+                    object : ScanChapterRunner.ChapterTranslator {
+                        override fun translateChapter(prompt: String) = emptyList()
+                    },
                 sink = sink,
             )
         assertEquals(listOf(1, 1, 1), sink.panels)
@@ -171,12 +188,13 @@ class ScanChapterRunnerTest {
                 characterSheet = "철수 = Chul-soo",
                 // panel 1 fills, panel 2 misses one bubble
                 perPanel = { p -> if (p.width == 100) result(1, untranslated = 1) else result(0) },
-                translator = object : ScanChapterRunner.ChapterTranslator {
-                    override fun translateChapter(prompt: String): List<String?> {
-                        sawSheet = prompt.contains("철수 = Chul-soo")
-                        return listOf("পূরণ")
-                    }
-                },
+                translator =
+                    object : ScanChapterRunner.ChapterTranslator {
+                        override fun translateChapter(prompt: String): List<String?> {
+                            sawSheet = prompt.contains("철수 = Chul-soo")
+                            return listOf("পূরণ")
+                        }
+                    },
                 sink = sink,
             )
         assertTrue("chapter prompt carried the sheet", sawSheet)
@@ -193,9 +211,10 @@ class ScanChapterRunnerTest {
                 panels = emptyList(),
                 characterSheet = "",
                 perPanel = { error("must not run") },
-                translator = object : ScanChapterRunner.ChapterTranslator {
-                    override fun translateChapter(prompt: String) = emptyList()
-                },
+                translator =
+                    object : ScanChapterRunner.ChapterTranslator {
+                        override fun translateChapter(prompt: String) = emptyList()
+                    },
                 sink = sink,
             )
         assertEquals(0, r.total)
