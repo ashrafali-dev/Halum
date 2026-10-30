@@ -17,7 +17,8 @@ class LensProtocolTest {
     private fun fixture(name: String): ByteArray = File(fixturesDir, name).readBytes()
 
     // org.json:json is a unit-test dependency; android.jar's copy throws.
-    private fun expected(name: String): JSONObject = JSONObject(File(fixturesDir, name).readText())
+    private fun expected(name: String): JSONObject =
+        JSONObject(File(fixturesDir, name).readText())
 
     private val fixturesDir: File
         get() {
@@ -129,8 +130,7 @@ class LensProtocolTest {
     fun `unknown fields do not break decoding`() {
         val jspb = fixture("lens_ko.bin")
         val padded =
-            Proto
-                .Writer()
+            Proto.Writer()
                 .writeMessage(2, jspb)
                 .writeString(5, "future-field")
                 .writeVarint(9, 3)
