@@ -258,8 +258,12 @@ def encode_box(bbox: list[float], width: int, height: int) -> bytes:
 
 
 def encode_line(block: dict, width: int, height: int) -> bytes:
-    """TextLine: 1 = word (repeated), 2 = line geometry."""
-    word = len_field(1, str_field(2, block["text"]))  # Word.plain_text = 2
+    """TextLine: 1 = Word (repeated), 2 = line geometry.
+
+    Word carries its text at its own field 2 (Word.plain_text), so the line
+    holds one nested word message per logical text run.
+    """
+    word = str_field(2, block["text"])
     return len_field(1, word) + len_field(2, encode_box(block["bbox"], width, height))
 
 
