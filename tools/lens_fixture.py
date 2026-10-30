@@ -30,18 +30,22 @@ WIRE_FIXED32 = 5
 
 
 class Proto:
-    def __init__(self, buf: bytes):
+    """Bounded reader: pos/end, never past the parent message (same as the
+    Kotlin Proto.Reader; an unbounded one silently desyncs on nested fields)."""
+
+    def __init__(self, buf: bytes, pos: int = 0, end: int | None = None):
         self.buf = buf
-        self.pos = 0
+        self.pos = pos
+        self.end = len(buf) if end is None else end
 
     def more(self) -> bool:
-        return self.pos < len(self.buf)
+        return self.pos < self.end
 
     def varint(self) -> int:
         out = 0
         shift = 0
         while True:
-            if self.pos >= len(self.buf):
+            if self.pos >= self.end:
                 raise ValueError("truncated varint")
             b = self.buf[self.pos]
             self.pos += 1
@@ -55,18 +59,23 @@ class Proto:
         return raw >> 3, raw & 7
 
     def fixed32(self) -> float:
+        if self.pos + 4 > self.end:
+            raise ValueError("truncated fixed32")
         (v,) = struct.unpack("<f", self.buf[self.pos:self.pos + 4])
         self.pos += 4
         return v
 
     def length(self) -> "Proto":
         n = self.varint()
-        sub = Proto(self.buf[self.pos:self.pos + n])
+        if self.pos + n > self.end:
+            raise ValueError("length exceeds parent message")
+        sub = Proto(self.buf, self.pos, self.pos + n)
         self.pos += n
         return sub
 
     def string(self) -> str:
-        return self.length().buf.decode("utf-8")
+        sub = self.length()
+        return sub.buf[sub.pos:sub.end].decode("utf-8")
 
     def skip(self, wire: int) -> None:
         if wire == WIRE_VARINT:
@@ -123,15 +132,19 @@ def join_words(words: list[tuple[str, str]]) -> str:
 def decode_block(paragraph: Proto, lang: str, width: int, height: int) -> list[dict]:
     lines = []
     box = None
+    para_lang = ""
     while paragraph.more():
         field, wire = paragraph.tag()
         if field == 2 and wire == WIRE_LEN:
             lines.append(paragraph.length())
         elif field == 3 and wire == WIRE_LEN:
             box = paragraph.length()
+        elif field == 5 and wire == WIRE_LEN:
+            para_lang = paragraph.string()
         else:
             paragraph.skip(wire)
     para_box = decode_box(box, width, height) if box else None
+    lang = para_lang or lang
 
     blocks = []
     for line in lines:
@@ -294,7 +307,11 @@ def main() -> int:
             print(f"[lens_fixture] missing {bin_path} or {json_path}", file=sys.stderr)
             ok = False
             continue
-        ok = check(bin_path, json_path) and ok
+        try:
+            ok = check(bin_path, json_path) and ok
+        except (ValueError, IndexError, KeyError) as exc:
+            print(f"[lens_fixture] {bin_path}: decode failed: {exc}", file=sys.stderr)
+            ok = False
     return 0 if ok else 1
 
 
