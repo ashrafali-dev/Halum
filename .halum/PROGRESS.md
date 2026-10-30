@@ -5,8 +5,9 @@
 
 **Last updated:** 2026-10-30 (session 4)
 **Branch:** `main`
-**Current phase:** D19 Step 1 **DONE** — all 6 engine checks green in CI
-(41027485611). Next: Step 2 (PanelPipeline).
+**Current phase:** D19 Step 1 DONE (6/6 green). Steps 2 and 3 committed,
+CI verifying (no local build, D20). Next: read CI result, fix failures,
+then Step 4 (MainActivity wiring).
 
 ## Snapshot
 
@@ -65,8 +66,8 @@
 ## What is next (exact order, D19)
 
 1. ~~Step 1 — engine verification~~ **DONE.**
-2. **Step 2 — PanelPipeline** end-to-end on one fixture panel.
-3. **Step 3 — ScanChapterRunner + RealtimeRunner**.
+2. ~~Step 2 — PanelPipeline~~ committed `077b489`; CI result pending.
+3. ~~Step 3 — ScanChapterRunner + RealtimeRunner~~ committed `1e731ee`; CI pending.
 4. **Step 4 — MainActivity wiring**, AC8 + AC10.
 5. **Step 5 — all workflows green**, **Step 6 — tag v0.1.0**.
 
