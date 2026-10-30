@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Size gates for AC10.
 
-Usage: report_sizes.py <apk> <models_dir>
+Usage: report_sizes.py <apk> [<models_dir> ...]
 
 Enforces:
   APK <= 60 MB
-  sum(model assets) <= 35 MB
+  sum(model assets across all dirs, de-duped by name) <= 35 MB
   each model <= 25 MB
   APK contains lib/armeabi-v7a/*.so  (32-bit support is a hard requirement)
+
+D21 splits MI-GAN into the `full` flavor; pass both asset dirs so the model
+budget is measured across the whole product set.
 
 Exit code 1 on any violation. Prints a table either way.
 """
@@ -22,10 +25,10 @@ MODEL_LIMIT = 25 * MB
 
 
 def main() -> int:
-    if len(sys.argv) != 3:
+    if len(sys.argv) < 2:
         print(__doc__)
         return 2
-    apk_path, models_dir = sys.argv[1], sys.argv[2]
+    apk_path, model_dirs = sys.argv[1], sys.argv[2:]
     errors = []
 
     apk_size = os.path.getsize(apk_path)
@@ -34,22 +37,24 @@ def main() -> int:
         errors.append(f"APK exceeds {APK_LIMIT // MB} MB")
 
     total = 0
-    model_files = []
-    if os.path.isdir(models_dir):
+    seen = set()
+    any_dir = False
+    for models_dir in model_dirs:
+        if not os.path.isdir(models_dir):
+            continue
+        any_dir = True
         for name in sorted(os.listdir(models_dir)):
             p = os.path.join(models_dir, name)
-            if not os.path.isfile(p) or name.startswith("."):
+            if not os.path.isfile(p) or name.startswith(".") or name in seen:
                 continue
+            seen.add(name)
             size = os.path.getsize(p)
             total += size
-            model_files.append((name, size))
             print(f"model {name:28s} {size / MB:8.2f} MB  (limit {MODEL_LIMIT // MB} MB)")
             if size > MODEL_LIMIT:
                 errors.append(f"{name} exceeds {MODEL_LIMIT // MB} MB")
-    else:
-        print(f"models dir missing: {models_dir}")
-        if os.environ.get("HALUM_REQUIRE_MODELS", "1") == "1":
-            errors.append("no model assets were exported (HALUM_REQUIRE_MODELS=1)")
+    if not any_dir and os.environ.get("HALUM_REQUIRE_MODELS", "1") == "1":
+        errors.append("no model assets were exported (HALUM_REQUIRE_MODELS=1)")
 
     print(f"models total   {total / MB:8.2f} MB  (limit {MODELS_LIMIT // MB} MB)")
     if total > MODELS_LIMIT:
@@ -57,8 +62,11 @@ def main() -> int:
 
     with zipfile.ZipFile(apk_path) as z:
         libs = [n for n in z.namelist() if n.startswith("lib/")]
+        assets = [n for n in z.namelist() if n.startswith("assets/models/")]
     abis = sorted({n.split("/")[1] for n in libs})
     print("APK ABIs       " + ", ".join(abis or ["<none>"]))
+    packaged = ", ".join(os.path.basename(a) for a in assets if not a.endswith("/"))
+    print("APK models     " + (packaged or "<none>"))
     if "armeabi-v7a" not in abis:
         errors.append("APK is missing armeabi-v7a native libraries")
 

@@ -308,3 +308,25 @@ coordinates in module files. Detekt + ktlint configs live in `config/`.
 
 **Why.** Lint workflow gates on both tools; one place to bump versions that
 AGP 8.7 + Kotlin 2.0 + Compose-free Views all agree on.
+
+### D21 Session 4: dual-ABI APK, MI-GAN behind a `full` flavor
+
+**Decision.** Ship **both** `armeabi-v7a` and `arm64-v8a`. MI-GAN is a
+`full`-flavor asset only; the `standard` flavor omits `migan.tflite` and the
+engine falls back to Telea (small masks) / solid fill (large masks) at
+runtime. `fetch_models.sh` writes `bubble.tflite` to `app/src/main/assets/models`
+(shared) and `migan.tflite` to `app/src/full/assets/models`.
+`build.yml` gates both flavors separately against AC10.
+
+**Why.** The target SM-A136B is arm64 hardware; a v7a-only APK runs in
+32-bit compat mode (slower, native-lib quirks). The first two-ABI MI-GAN
+build was 73 MB (> 60 MB). Splitting MI-GAN out keeps the standard APK small
+(~45 MB measured v7a-only; both ABIs re-measured in CI) while the `full`
+flavor carries the model. Size budgets (D8) are checked across both dirs.
+
+**Supersedes.** The interim v7a-only decision from the same session, which
+was wrong for the reasons above.
+
+**How to apply.** Default APK = Telea/solid-fill only. Opt in with
+`./gradlew assembleFullDebug` (or `-Phalum.migan=true` in earlier drafts).
+Never put `migan.tflite` in `main/assets`.

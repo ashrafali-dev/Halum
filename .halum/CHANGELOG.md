@@ -3,6 +3,27 @@
 Session-by-session log. Newest first. Each entry: date, what changed,
 what CI said.
 
+## 2026-10-30 18:xx UTC — session 4 (continued): Step 1 green
+
+**D19 Step 1 is done — 6/6 engine checks green** (integration 41027485611),
+build+lint+integration all green.
+
+- First real run exposed `main` had been red since `f3aeef8` (phase2 tests
+  never ran). Fixed six wrong test premises (letterbox 446 vs 445 / pad 106
+  vs 107, sigmoid at the 0/1 ambiguity, rate window boundary, bridge "one
+  send" on a refusal path, Byte/Int list compare) and four pre-existing
+  detekt findings. See the `fix:` commits.
+- Inpaint: MI-GAN ONNX has `image`+`mask` inputs (not 4-channel); harness now
+  detects both shapes. AC4 re-scoped to D14.3 (change>5 + flatness +
+  fill>=0.90); `INPAINT_VERIFY:` printed per fixture.
+- MI-GAN tflite was 28.8 MB (onnx2tf float32) → export now picks the smallest
+  variant under the 25 MB cap (float16, 14.7 MB).
+- **D21 corrected**: dual-ABI (v7a+arm64), MI-GAN moved to a `full` flavor,
+  default flavor is Telea/solid-fill. build.yml gates both flavors.
+- Commits: `163f2bf` harness, `0ea9acf`/`904be62` test fixes, `5f0ef4c`
+  AC4 rescope, `d4bf937` MI-GAN inputs, `f0e79f6` export size, `004da0a`
+  (superseded v7a-only), and the D21-corrected commit.
+
 ## 2026-10-30 13:xx UTC — session 4
 
 Started D19 Step 1 (engine verification first). No engine wired yet.

@@ -62,7 +62,7 @@ jobs:
 
       - name: JVM core replay (Lens decoder, planner, bridge)
         run: |
-          ./gradlew --no-daemon testDebugUnitTest \
+          ./gradlew --no-daemon testStandardDebugUnitTest \
             --tests 'app.halum.core.LensProtocolTest' \
             --tests 'app.halum.core.BatchPlannerTest' \
             --tests 'app.halum.core.ResponseParserTest' \

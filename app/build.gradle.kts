@@ -18,15 +18,10 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // 32-bit is a hard requirement (user device armeabi-v7a). D21: v0.1.0
-        // ships armeabi-v7a only — OpenCV's per-ABI native libs were ~2x the
-        // APK budget, and with MI-GAN the two-ABI APK was 73 MB (> 60 MB).
-        // Pass -Phalum.arm64=true to build both ABIs.
+        // D21: ship BOTH ABIs. The target SM-A136B is arm64 hardware; a
+        // v7a-only APK runs in 32-bit compat mode (slower, native-lib bugs).
         ndk {
-            abiFilters += listOf("armeabi-v7a")
-            if (providers.gradleProperty("halum.arm64").orNull == "true") {
-                abiFilters += "arm64-v8a"
-            }
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
         }
     }
 
@@ -64,6 +59,21 @@ android {
     // exactly the kind of transient allocation that OOMs a 192 MB heap.
     androidResources {
         noCompress += listOf("tflite", "onnx", "bin")
+    }
+
+    // D21: MI-GAN is opt-in via product flavors. Both flavors build both ABIs;
+    // only `full` bundles migan.tflite. fetch_models.sh stages migan next to
+    // bubble.tflite and the `full` flavor includes it, so neither build mutates
+    // another's sources.
+    flavorDimensions += "inpaint"
+    productFlavors {
+        // `standard` avoids the Java keyword `default` in generated DSL code.
+        create("standard") {
+            dimension = "inpaint"
+        }
+        create("full") {
+            dimension = "inpaint"
+        }
     }
 
     packaging {

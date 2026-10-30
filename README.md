@@ -23,8 +23,19 @@ Two modes: **Scan Chapter** (whole chapter, chapter-level prompt, target
 
 Everything runs in GitHub Actions; no local toolchain is needed or assumed.
 
-- `build.yml` — debug APK + unit tests + size gates
-- `integration-test.yml` — Lens fixture replay, bubble recall, inpaint, bridge mock
+### Flavors (D21)
+
+| flavor | MI-GAN | inpaint | APK |
+|---|---|---|---|
+| `standard` | not bundled | Telea (< 15k px) / solid fill | smaller; ships `bubble.tflite` only |
+| `full` | bundled | Telea / MI-GAN | carries `migan.tflite` (~15 MB) |
+
+Both flavors build `armeabi-v7a` **and** `arm64-v8a`. MI-GAN is fetched into
+`app/src/full/assets/models/` by `tools/fetch_models.sh`; the `standard`
+flavor never sees it and the engine falls back at runtime.
+
+- `build.yml` — debug APKs (both flavors) + unit tests + size gates per flavor
+- `integration-test.yml` — Lens fixture replay, bubble recall, inpaint, bridge mock, engine verification
 - `lint.yml` — ktlint + detekt + Android Lint
 - `memory-test.yml` — 32-bit emulator, 10-minute scripted scan
 - `lens-canary.yml` — weekly live Lens check (non-blocking)

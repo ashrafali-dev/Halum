@@ -5,7 +5,8 @@
 
 **Last updated:** 2026-10-30 (session 4)
 **Branch:** `main`
-**Current phase:** 1 complete; Step 1 of D19 (engine verification) written, CI run pending
+**Current phase:** D19 Step 1 **DONE** — all 6 engine checks green in CI
+(41027485611). Next: Step 2 (PanelPipeline).
 
 ## Snapshot
 
@@ -26,9 +27,10 @@
 | Orchestration + full UI | not started |
 | `fixtures/lens_ko.bin`, `fixtures/lens_ja.bin` | committed, self-built (not a live capture) — decode + round-trip green |
 | Core JVM: `Proto`, `LensProtocol`, `BatchPlanner`, `PromptBuilder`, `ResponseParser`, `ChatBridge` | done, 30 unit tests green |
-| Engine verification harness (`tools/engine_verify.py`, D18) | written, CI run pending |
-| `ChatBridgeVerificationTest` + `fixtures/chatbot/sessions.json` | written (bridge replayed from fixture) |
-| MI-GAN fetch (`MIGAN_URLS` in `fetch_models.sh`) | wired to the two D4 mirrors + proxy fallback |
+| Engine verification (`tools/engine_verify.py`, D18) | **DONE — 6/6 green** (run 41027485611) |
+| `ChatBridgeVerificationTest` + `fixtures/chatbot/sessions.json` | green |
+| MI-GAN fetch (`MIGAN_URLS` in `fetch_models.sh`) | downloads + quantizes; 14.7 MB tflite into full flavor |
+| Flavors (D21) | `default` (Telea/solid-fill) + `full` (MI-GAN), both ABIs |
 | Tag `v0.1.0` | not reached |
 
 ## What works
@@ -62,12 +64,8 @@
 
 ## What is next (exact order, D19)
 
-1. **Step 1 — watch the engine-verification run.** Push this session; the
-   `integration-test.yml` workflow now runs `tools/engine_verify.py` and
-   uploads `.halum/verify/` + `.halum/ENGINE_VERIFICATION.md`. If any of the
-   five checks fails, the file records the failing detail and the next session
-   fixes that engine before Step 2.
-2. **Step 2 — PanelPipeline** end-to-end on one fixture panel (only after 1).
+1. ~~Step 1 — engine verification~~ **DONE.**
+2. **Step 2 — PanelPipeline** end-to-end on one fixture panel.
 3. **Step 3 — ScanChapterRunner + RealtimeRunner**.
 4. **Step 4 — MainActivity wiring**, AC8 + AC10.
 5. **Step 5 — all workflows green**, **Step 6 — tag v0.1.0**.
@@ -89,11 +87,11 @@ Independently still open: hand-annotate `wha.jpg` for real AC3 ground truth
 | AC1 | 4 required workflows pass | build+lint+integration green; memory-test pending; Step 1 verification added to integration |
 | AC2 | Lens replay asserts decoder output | replay green, but self-built fixtures — not independent yet |
 | AC3 | bubble recall >= 80% | 1.000 in run 40990108077; engine_verify re-asserts + small-bubble count |
-| AC4 | inpaint residual (scoped, D14.3) | engine_verify measures Telea residual on full bubble masks; MI-GAN once the export lands |
+| AC4 | inpaint residual (scoped, D14.3) | green: MI-GAN change_min 69.41, fill 1.000, flat 10.2 over 4 pages |
 | AC5 | bridge state machine streaming/timeout/cancel | green: unit tests + `ChatBridgeVerificationTest` fixture replay |
 | AC6 | scan 20–40 panels < 5 min | not started |
 | AC7 | realtime 1 panel < 5 s | not started |
 | AC8 | overlay persists until scroll | not started |
 | AC9 | small bubbles never merged | not started |
-| AC10 | APK <= 60 MB, models <= 35 MB, armeabi-v7a | not started |
+| AC10 | APK <= 60 MB, models <= 35 MB, armeabi-v7a | default flavor 45.8 MB v7a-only before D21; both flavors gated in CI |
 | AC11 | 6 memory files current | yes — updated session 3 |

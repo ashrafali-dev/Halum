@@ -54,25 +54,36 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
       - name: Unit tests
-        run: ./gradlew --no-daemon testDebugUnitTest
+        # Flavors split the task name; run one flavor (tests are identical).
+        run: ./gradlew --no-daemon testStandardDebugUnitTest
 
-      - name: Assemble debug
+      - name: Assemble debug (both flavors)
         run: ./gradlew --no-daemon assembleDebug
 
-      - name: Size gates (APK <= 60 MB, models <= 35 MB, armeabi-v7a present)
-        run: python3 tools/report_sizes.py app/build/outputs/apk/debug/*.apk app/src/main/assets/models
+      # D21: default = Telea + solid-fill (no MI-GAN asset); full = MI-GAN.
+      # Each APK must satisfy AC10 on its own.
+      - name: Size gate — default flavor (no MI-GAN)
+        run: |
+          apk=$(ls app/build/outputs/apk/standard/debug/*.apk)
+          python3 tools/report_sizes.py "$apk" app/src/main/assets/models
+
+      - name: Size gate — full flavor (with MI-GAN)
+        run: |
+          apk=$(ls app/build/outputs/apk/full/debug/*.apk)
+          HALUM_REQUIRE_MODELS=0 python3 tools/report_sizes.py \
+            "$apk" app/src/main/assets/models app/src/full/assets/models
 
       - name: Unit test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-report
-          path: app/build/reports/tests/testDebugUnitTest
+          path: app/build/reports/tests/testStandardDebugUnitTest
           if-no-files-found: ignore
 
-      - name: APK
+      - name: APKs
         uses: actions/upload-artifact@v4
         with:
-          name: halum-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: halum-debug-apks
+          path: app/build/outputs/apk/*/debug/*.apk
           if-no-files-found: error

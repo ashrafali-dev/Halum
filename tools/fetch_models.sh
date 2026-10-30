@@ -19,6 +19,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODELS_DIR="${HALUM_MODELS_DIR:-$ROOT/app/src/main/assets/models}"
+# D21: MI-GAN lives only in the `full` flavor's assets, so the standard APK
+# (Telea + solid-fill) stays small. bubble.tflite is shared by both flavors.
+FULL_MODELS_DIR="${HALUM_FULL_MODELS_DIR:-$ROOT/app/src/full/assets/models}"
 CACHE_DIR="${CACHE_DIR:-$ROOT/.cache/models}"
 WORK="$CACHE_DIR/work"
 ULTRALYTICS_VERSION="${ULTRALYTICS_VERSION:-8.4.193}"
@@ -97,11 +100,14 @@ fi
 
 if [ -n "$migan_onnx" ]; then
   log "MIGAN_DOWNLOAD: url=$migan_onnx sizeMB=$(awk "BEGIN{printf \"%.1f\", $(wc -c <"$migan_onnx")/1e6}") pass=true"
-  "$PY" "$ROOT/tools/export_migan.py" --onnx "$migan_onnx" --out "$MODELS_DIR" \
+  mkdir -p "$FULL_MODELS_DIR"
+  "$PY" "$ROOT/tools/export_migan.py" --onnx "$migan_onnx" --out "$FULL_MODELS_DIR" \
     || log "MIGAN_UNAVAILABLE: reason=export_failed fallback=telea"
 else
   log "MIGAN_UNAVAILABLE: reason=download_failed fallback=telea"
 fi
 
-log "models now in $MODELS_DIR:"
+log "bubble model in $MODELS_DIR:"
 ls -l "$MODELS_DIR" | sed 's/^/  /'
+log "full-flavor models in $FULL_MODELS_DIR:"
+ls -l "$FULL_MODELS_DIR" 2>/dev/null | sed 's/^/  /' || true

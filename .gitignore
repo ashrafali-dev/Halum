@@ -17,6 +17,8 @@ local.properties
 *.npy
 app/src/main/assets/models/*
 !app/src/main/assets/models/.gitkeep
+app/src/full/assets/models/*
+!app/src/full/assets/models/.gitkeep
 
 # Probe / scratch
 probe/
