@@ -111,7 +111,7 @@ object SegDecoder {
         raw.sortWith(compareByDescending<Detection> { it.score }.thenBy { it.x1 }.thenBy { it.y1 })
         val kept = ArrayList<Detection>(raw.size)
         for (det in raw) {
-            if (kept.none { iou(it, det) >= NMS_IoU }) kept += det
+            if (kept.none { iou(it, det) >= NMS_IOU }) kept += det
         }
         return kept
     }

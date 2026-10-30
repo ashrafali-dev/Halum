@@ -7,7 +7,6 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.View
-import androidx.core.content.res.ResourcesCompat
 import app.halum.core.BubbleClassifier
 import app.halum.core.TextFitter
 import app.halum.util.Log
@@ -44,7 +43,7 @@ class OverlayView
                 textAlign = Paint.Align.LEFT
                 // D14.15 wants a bundled Bengali face; until one is added to
                 // res/font the system font is used rather than crashing.
-                typeface = bengaliTypeface(context) ?: Typeface.DEFAULT
+                typeface = bengaliTypeface(context)
             }
         private val fitter: TextFitter.Measure =
             TextFitter.Measure { text, sizePx ->
@@ -130,12 +129,10 @@ class OverlayView
 
             /**
              * D14.15 wants NotoSansBengali bundled in res/font. No font file is
-             * committed yet, so the system face is used; add the resource and
-             * swap this lookup when the .ttf lands (one-line change).
+             * committed yet, so the system sans face (which carries Bengali on
+             * API 26+) is used. Add the .ttf and swap this lookup to
+             * `ResourcesCompat.getFont(context, R.font.noto_sans_bengali)`.
              */
-            fun bengaliTypeface(context: Context): Typeface? =
-                runCatching {
-                    ResourcesCompat.getFont(context, android.R.font.sans_serif)
-                }.getOrNull()
+            fun bengaliTypeface(context: Context): Typeface? = Typeface.SANS_SERIF
         }
     }

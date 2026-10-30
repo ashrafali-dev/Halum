@@ -83,7 +83,7 @@ class BubbleDetector private constructor(
                 Interpreter.Options().apply {
                     setNumThreads(if (Runtime.getRuntime().availableProcessors() >= 4) 4 else 2)
                 }
-            val detector = BubbleDetector(Interpreter(mmapp(model.file), options))
+            val detector = BubbleDetector(Interpreter(mmap(model.file), options))
             Log.i(TAG, "loaded ${model.file.name} ${model.size} bytes")
             return detector
         }
