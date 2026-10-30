@@ -9,7 +9,12 @@ object BubbleClassifier {
     const val SMALL_WIDTH_PX = 60f
     const val SMALL_AREA_PX = 4000f
 
-    data class Box(val x1: Float, val y1: Float, val x2: Float, val y2: Float) {
+    data class Box(
+        val x1: Float,
+        val y1: Float,
+        val x2: Float,
+        val y2: Float,
+    ) {
         val width: Float get() = x2 - x1
         val height: Float get() = y2 - y1
         val area: Float get() = width * height
