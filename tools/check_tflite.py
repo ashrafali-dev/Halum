@@ -22,11 +22,19 @@ import sys
 
 
 def _load(path):
-    try:
-        from tflite_runtime.interpreter import Interpreter
-    except ImportError:
-        from tensorflow.lite import Interpreter  # type: ignore
-    return Interpreter(model_path=path)
+    # ai-edge-litert is the maintained package; tflite_runtime stopped at
+    # Python 3.11 and TensorFlow's lite is the last resort.
+    for mod, name in (
+        ("ai_edge_litert.interpreter", "Interpreter"),
+        ("tflite_runtime.interpreter", "Interpreter"),
+        ("tensorflow.lite", "Interpreter"),
+    ):
+        try:
+            module = __import__(mod, fromlist=[name])
+            return getattr(module, name)(model_path=path)
+        except ImportError:
+            continue
+    raise ImportError("no LiteRT interpreter (ai-edge-litert / tflite-runtime / tensorflow)")
 
 
 def dump_node(interp, index: int) -> None:

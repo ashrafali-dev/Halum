@@ -32,7 +32,9 @@ jobs:
       - name: Python deps
         run: |
           python3 -m pip install --quiet --upgrade pip
-          python3 -m pip install --quiet "ultralytics==8.4.193" onnxruntime numpy pillow opencv-python-headless tflite-runtime
+          # tflite-runtime has no wheel past Python 3.11; ai-edge-litert is the
+          # maintained LiteRT interpreter package.
+          python3 -m pip install --quiet "ultralytics==8.4.193" onnxruntime numpy pillow opencv-python-headless ai-edge-litert
 
       - name: Model cache
         uses: actions/cache@v4
