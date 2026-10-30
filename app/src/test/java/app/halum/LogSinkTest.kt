@@ -9,17 +9,17 @@ import org.junit.Test
 
 /** Smoke test that the logging indirection used by every pipeline tag works on a plain JVM. */
 class LogSinkTest {
-
     private val captured = mutableListOf<String>()
     private val previous = Log.sink
 
     @Before
     fun installSink() {
-        Log.sink = object : Log.Sink {
-            override fun write(priority: Int, tag: String, message: String) {
-                captured += "$priority|$tag|$message"
+        Log.sink =
+            object : Log.Sink {
+                override fun write(priority: Int, tag: String, message: String) {
+                    captured += "$priority|$tag|$message"
+                }
             }
-        }
     }
 
     @After

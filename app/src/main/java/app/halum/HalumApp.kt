@@ -4,7 +4,6 @@ import android.app.Application
 import app.halum.util.Log
 
 class HalumApp : Application() {
-
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "Halum ${BuildConfig.VERSION_NAME} starting, capture=${BuildConfig.HALUM_CAPTURE}")

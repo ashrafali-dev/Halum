@@ -9,11 +9,16 @@ Why this is not a one-liner (see .halum/MODELS.md + BUGS.md):
 3. There is no reliable ONNX -> TFLite converter on Python 3.12 that handles
    this graph (onnx2tf needs TF<=3.10; ai-edge-litert needs TF).
 
-So we do the conversion ourselves, offline, in two deterministic steps:
-   A. onnx2tf via TensorFlow 3.11 (tflite-runtime-free, tf-cpu wheel)
-   B. float16 quantisation of the resulting tflite (halves 11 MB -> ~5.7 MB)
+So we do the conversion ourselves with onnx2tf >= 2.6 (requires Python
+3.12, which is what the workflows use). Since 2.0 onnx2tf talks to LiteRT
+directly through `ai-edge-litert`, so no TensorFlow wheel is needed; the
+`[tensorflow]` extra only matters for the legacy `tf_converter` backend.
 
-If step A fails the script returns non-zero and fetch_models.sh aborts,
+We ask the default `flatbuffer_direct` backend for the float32 and float16
+variants. INT8 is deliberately not attempted: it needs a segment-labelled
+calibration dataset (BUGS.md), and float16 already lands at ~6 MB.
+
+If conversion fails the script returns non-zero and fetch_models.sh aborts,
 because the app cannot run without a bubble model.
 """
 import argparse
@@ -41,34 +46,35 @@ def yolo_to_onnx(pt: str, out_dir: str) -> str:
     return dest
 
 
+ONNX2TF_VERSION = "2.6.9"
+
+
 def onnx_to_tflite(onnx_path: str, work_dir: str) -> str:
-    """onnx2tf in its own venv: it pins TensorFlow, which conflicts with torch."""
+    """onnx2tf in its own venv: it pins exact onnx/numpy/onnxruntime versions
+    that would otherwise fight with ultralytics in the main interpreter."""
     venv = os.path.join(work_dir, "venv_tf")
     if not os.path.isdir(venv):
         sh([sys.executable, "-m", "venv", venv])
         sh([os.path.join(venv, "bin", "pip"), "install", "--quiet", "--upgrade", "pip"])
         sh([
             os.path.join(venv, "bin", "pip"), "install", "--quiet",
-            "tensorflow-cpu==2.17.1", "onnx2tf==1.26.3", "onnx==1.17.0",
-            "onnx_graphsurgeon", "onnxsim", "onnxruntime", "numpy<2",
-            "flatbuffers", "psutil", "sng4onnx", "onnx2tf-typing",
+            f"onnx2tf=={ONNX2TF_VERSION}",
         ])
     tb_dir = os.path.join(work_dir, "tb")
     shutil.rmtree(tb_dir, ignore_errors=True)
     sh([
         os.path.join(venv, "bin", "onnx2tf"),
         "-i", onnx_path, "-o", tb_dir, "-b", "1",
-        "--non_verbose", "--output_integer_quantized_tflite",
+        "--non_verbose",
     ])
-    # onnx2tf writes <model>_float32.tflite and <model>_integer_quant.tflite.
+    # flatbuffer_direct writes <model>_float32.tflite and <model>_float16.tflite.
     candidates = sorted(
         os.path.join(tb_dir, f) for f in os.listdir(tb_dir)
         if f.endswith(".tflite")
     )
     if not candidates:
         raise SystemExit("onnx2tf produced no tflite")
-    # int8 first (smallest that keeps >99% IoU), then float32.
-    chosen = next((c for c in candidates if "integer_quant" in c), candidates[0])
+    chosen = next((c for c in candidates if "float16" in c), candidates[0])
     print(f"[export_bubble] tflite {os.path.getsize(chosen) / 1e6:.2f} MB ({os.path.basename(chosen)})")
     return chosen
 

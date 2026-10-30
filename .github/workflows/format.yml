@@ -1,0 +1,48 @@
+name: format
+
+# ktlint --format on main, then commit the result back. Style is a machine
+# problem; the lint workflow then only has to verify it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/src/**/*.kt'
+      - '.editorconfig'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: format-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ktlint-format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: ktlint --format
+        run: |
+          curl -sSLo ktlint https://github.com/pinterest/ktlint/releases/download/1.4.1/ktlint
+          chmod +x ktlint
+          ./ktlint --format --relative "app/src/**/*.kt" || true
+          rm -f ktlint
+
+      - name: Commit formatting
+        run: |
+          if git diff --quiet -- app/src; then
+            echo "already formatted"
+            exit 0
+          fi
+          git config user.name "Halum Bot"
+          git config user.email "halum-bot@local.invalid"
+          git add app/src
+          git commit -m "style: ktlint --format [skip ci]"
+          git push

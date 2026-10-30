@@ -2,13 +2,17 @@ package app.halum
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import android.graphics.Color
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.LinearLayout
 import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import app.halum.databinding.ActivityMainBinding
 import app.halum.util.Log
@@ -44,24 +48,26 @@ class MainActivity : AppCompatActivity() {
 
         binding.splitter.setOnTouchListener { _, event ->
             when (event.actionMasked) {
-                android.view.MotionEvent.ACTION_DOWN -> {
+                MotionEvent.ACTION_DOWN -> {
                     dragging = true
                     dragStartY = event.rawY
                     dragStartWeight = weightOf(binding.mainContainer)
                     true
                 }
-                android.view.MotionEvent.ACTION_MOVE -> {
+                MotionEvent.ACTION_MOVE -> {
                     if (dragging) {
                         val dy = event.rawY - dragStartY
-                        val total = (binding.mainContainer.height + binding.chatContainer.height)
-                            .coerceAtLeast(1)
+                        val total =
+                            (binding.mainContainer.height + binding.chatContainer.height)
+                                .coerceAtLeast(1)
                         val newWeight = (dragStartWeight + dy / total).coerceIn(0.15f, 0.85f)
                         setWeights(newWeight)
                     }
                     true
                 }
-                android.view.MotionEvent.ACTION_UP,
-                android.view.MotionEvent.ACTION_CANCEL -> {
+                MotionEvent.ACTION_UP,
+                MotionEvent.ACTION_CANCEL,
+                -> {
                     dragging = false
                     true
                 }
@@ -89,7 +95,7 @@ class MainActivity : AppCompatActivity() {
             blockNetworkImage = false
         }
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
-        web.setBackgroundColor(android.graphics.Color.BLACK)
+        web.setBackgroundColor(Color.BLACK)
         web.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
                 Log.i(TAG, "PAGE_FINISHED: url=${url.take(120)}")
@@ -98,12 +104,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openUrlPrompt() {
-        val input = android.widget.EditText(this).apply {
+        val input = EditText(this).apply {
             hint = "https://"
             setText(binding.mainWebView.url ?: START_URL)
             setSingleLine()
         }
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        AlertDialog.Builder(this)
             .setTitle(R.string.action_open_url)
             .setView(input)
             .setPositiveButton(android.R.string.ok) { _, _ ->
@@ -125,16 +131,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setWeights(mainWeight: Float) {
-        (binding.mainContainer.layoutParams as android.widget.LinearLayout.LayoutParams).weight =
-            mainWeight
-        (binding.chatContainer.layoutParams as android.widget.LinearLayout.LayoutParams)
-            .weight = 1f - mainWeight
+        mainWeights().weight = mainWeight
+        chatWeights().weight = 1f - mainWeight
         binding.mainContainer.requestLayout()
         binding.chatContainer.requestLayout()
     }
 
-    private fun weightOf(v: View): Float =
-        (v.layoutParams as android.widget.LinearLayout.LayoutParams).weight
+    private fun mainWeights() = binding.mainContainer.layoutParams as LinearLayout.LayoutParams
+
+    private fun chatWeights() = binding.chatContainer.layoutParams as LinearLayout.LayoutParams
+
+    private fun weightOf(v: View): Float = (v.layoutParams as LinearLayout.LayoutParams).weight
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)

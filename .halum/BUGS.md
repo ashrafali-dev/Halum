@@ -8,12 +8,22 @@ _(none yet)_
 
 ## Open
 
-### [OPEN] probe: `export(format="tflite", int8=True)` fails on detect dataset
-- Symptom: `Segment dataset requires equal numbers of boxes and segments,
-  but got len(segments) = 0, len(boxes) = 17`.
-- Cause: Ultralytics INT8 calibration needs a **segment** dataset.
-- Fix planned: pseudo-labelled segment dataset in `tools/fetch_models.sh`
-  (DECISIONS D14.1). Not yet verified.
+### [FIXED] build/integration red: bubble export pip install fails
+- Runs 40985772807 (build) and 40985772949 (integration-test), 2026-10-30.
+- Symptom: `ERROR: No matching distribution found for onnx2tf-typing`.
+- Cause: `tools/export_bubble.py` pinned `onnx2tf==1.26.3` + a package that
+  does not exist on PyPI, and assumed TF ≤ 3.10 / `onnx_graphsurgeon`.
+- Fix: onnx2tf 2.6.9 (Python ≥ 3.12, no TensorFlow needed — it uses
+  `ai-edge-litert`), float16 output from the default `flatbuffer_direct`
+  backend. INT8 is not attempted (see entry below).
+- Pipeline caches keyed on `hashFiles('tools/export_bubble.py', …)`, so the
+  fix invalidates `.cache/models` automatically.
+
+### [OPEN] bubble INT8 not attempted
+- Symptom (probe): Ultralytics INT8 calibration needs a segment dataset
+  (`len(segments) = 0`).
+- Decision: ship float16 (~6 MB target per D3) instead of int8 for now.
+  Revisit only if APK size gate (60 MB) or recall (AC3) forces it.
 
 ### [OPEN] probe: ultralytics deprecations
 - `format='tflite'` → `'litert'`; `int8=True` → `quantize=int8`
@@ -25,6 +35,13 @@ _(none yet)_
 - Fix: verify on fixture in Phase 2; add `InpaintEngineTest`
   that asserts the masked pixel mean changes by > 5 and the output stays
   inside the bubble (D14.4).
+
+### [FIXING] lint red: ktlint style in MainActivity/HalumApp/LogSinkTest
+- Run 40985772775: 38 `function-signature`, 5 `no-empty-first-line-in-class-body`,
+  multiline wrapping, chain continuation, 1 unused import.
+- Fix: long lines split (main + test sources), blank first class-body lines
+  removed, fully-qualified names replaced with imports. Guard: new
+  `format.yml` runs `ktlint --format` on main and commits `[skip ci]`.
 
 ### [OPEN] probe run 40979677999 failed
 - `FileNotFoundError: probe/frieren.jpg` — workflow fetched
