@@ -14,9 +14,12 @@
 | `.halum/` memory files | done — keep current |
 | Gradle skeleton + wrapper | committed (`a351925`) — never verified green |
 | App module + MainActivity stub (two WebViews, splitter) | committed, compiles in CI |
-| CI workflows: build / lint / integration-test / memory-test / lens-canary | committed, all red as of 4098577xxxx |
-| CI `format.yml` (ktlint --format, auto-commit) | added session 2 |
-| Bubble export (`tools/export_bubble.py`) | fixed session 2 — needs a green run |
+| CI `build.yml` | **green** (40988332274) — APK 58.1 MB, bubble.tflite 5.86 MB |
+| CI `lint.yml` + `format.yml` | **green** (format reflowed main in f6ec1ab) |
+| CI `integration-test.yml` | harness works; red only on AC3 assertion |
+| CI `memory-test.yml` | never observed to run/pass |
+| Bubble export (`tools/export_bubble.py`) | **works**: onnx2tf 2.6.9 → float16 |
+| Bubble reference detector + AC3 boxes (`fixtures/pages.json`) | 36 boxes, 4 pages |
 | MI-GAN export (`tools/export_migan.py`) | written, never run in CI (needs `MIGAN_ONNX_URL`) |
 | Core Kotlin (pure JVM: lens/split/placement/bridge) | not started |
 | Android engines (Lens/TFLite/OpenCV/Overlay) | not started |
@@ -26,42 +29,51 @@
 
 ## What works
 
+- Debug APK builds in CI (58.1 MB, armeabi-v7a present, size gates pass) and
+  **runs** on the target device (user installed it 2026-10-30).
 - Skeleton: Gradle 8.9 wrapper, version catalog, `app` module, manifests,
   `MainActivity` (MAIN + CHAT WebViews, draggable splitter, URL prompt),
-  `HalumApp`, `util/Log` + its JVM unit test.
-- 5 workflows + `tools/{fetch_models,export_bubble,export_migan,report_sizes}`.
-- Nothing has ever passed CI yet. Do not claim otherwise.
+  `HalumApp`, `util/Log` + JVM unit test.
+- Model pipeline: HF download → Ultralytics ONNX → onnx2tf 2.6.9 FP16 →
+  `bubble.tflite` 5.86 MB in the APK; cached via `.cache/models`.
+- `tools/integration_test.py`: bubble detection via onnxruntime with
+  sigmoid + NMS; writes `build/integration/bubble_ref.json`.
+- Real counts, verified in CI: frieren 7 (probe agreement), motl 7,
+  wha 12, ajin 5.
 
 ## What is broken / blocked
 
-1. **build + integration-test** were red on `exports` — the venv pip failed on
-   a nonexistent `onnx2tf-typing`. Fixed in session 2 (onnx2tf 2.6.9), unverified.
-2. **lint** was red on ktlint formatting. Fixed by hand in session 2 and now
-   guarded by `format.yml`; unverified.
-3. **Unverified dependency/API surface**: `app/build.gradle.kts` references
-   TFLite/OpenCV/etc. but no engine code exists yet; first real compile of
-   those deps happens when Phase 2 starts.
-4. `report_sizes.py` gates never executed because CI never got past export.
+1. **No app functionality yet beyond browsing two WebViews.** Lens, bubbles,
+   translate, inpaint, overlay: none implemented in Kotlin.
+2. **AC3 references are self-generated** (same model). Locks regressions,
+   is not independent ground truth — see BUGS.md.
+3. `app/src/main/assets/models/` has only `bubble.tflite`; no inpaint model
+   (`MIGAN_ONNX_URL` empty).
+4. `memory-test.yml` has never been exercised.
+5. No `fixtures/lens_*.bin` — AC2 cannot start.
 
 ## What is next (exact order)
 
-1. Push session-2 changes; watch **build**, **lint**, **format**,
-   **integration-test** to green (`gh run watch <id> --exit-status`). Fix
-   whatever the first real Gradle compile surfaces (expect dependency/API
-   mismatches — none of `app/build.gradle.kts` has been exercised).
-2. Fill the `integration-test.yml` body (it currently only fetches models and
-   collects fixtures) until AC2/AC3/AC4 assertions exist.
-3. Phase 1: pure-Kotlin core in `app/src/main/java/app/halum/core/` with unit
-   tests: LensProtocol decoder (replay fixtures), text splitter (D6 rules),
-   placement, bridge state machine.
-4. Capture `fixtures/lens_ko.bin` / `lens_ja.bin` via `workflow_dispatch` +
-   artifact (record-once, D2).
-5. Phase 2 engines, then UI, then `lens-canary.yml`, then `v0.1.0`.
+1. Confirm integration-test is green now that `expected` boxes exist
+   (run after 2026-10-30 08:10). Then fix anything red.
+2. **Phase 1 core** (`app/src/main/java/app/halum/core/`, pure JVM, JUnit
+   tests in `app/src/test/.../core/`):
+   a. `lens/LensProtocol.kt` — decoder over `fixtures/lens_*.bin`, asserts
+      text/coords (AC2), plus a parser test over a recorded JSON sample.
+   b. `text/Splitter.kt` — D6 rules: 8 blocks / 400 chars per sub-batch,
+      order preserved.
+   c. `bridge/ChatBridge.kt` state machine with a fake WebView (AC5).
+   Re-add `--tests 'app.halum.integration.*'` to integration-test.yml only
+   when such a package exists.
+3. Records Lens fixtures: `workflow_dispatch` job hits Lens, uploads
+   `lens_ko.bin`/`lens_ja.bin` as artifact, commit them to `fixtures/`.
+4. Phase 2 engines (Lens client, BubbleDetector TFLite, InpaintEngine,
+   Overlay), then UI wiring, then `lens-canary.yml`, then `v0.1.0`.
 
 ## Open questions for the user (blocking, ask before spending CI time)
 
-- `MIGAN_ONNX_URL` is empty, so no inpaint model is produced. Supply a mirror
-  URL (or approve shipping D4 fallback-only: Telea + ring-colour fill).
+- `MIGAN_ONNX_URL` is empty → no inpaint model. Supply a mirror URL, or
+  approve shipping D4 fallback-only (Telea + ring-colour fill).
 - `HF_TOKEN` is passed to export but the bubble repo is public; drop the
   secret if unnecessary.
 
@@ -69,9 +81,9 @@
 
 | # | criterion | status |
 |---|---|---|
-| AC1 | 4 required workflows pass | red — fixes unverified |
+| AC1 | 4 required workflows pass | build+lint green; integration + memory-test pending |
 | AC2 | Lens replay asserts decoder output | not started |
-| AC3 | bubble recall >= 80% | not started |
+| AC3 | bubble recall >= 80% | harness ready, 36 refs; run pending |
 | AC4 | inpaint residual (scoped, D14.3) | not started |
 | AC5 | bridge state machine streaming/timeout/cancel | not started |
 | AC6 | scan 20–40 panels < 5 min | not started |

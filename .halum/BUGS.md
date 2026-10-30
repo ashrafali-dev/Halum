@@ -6,7 +6,24 @@ Format: `[OPEN|FIXING|FIXED] short title` — symptom, root cause, fix, run id.
 
 _(none yet)_
 
+### [FIXED] integration-test red: `tools/integration_test.py` missing
+- Run 40988332235: `python3: can't open file tools/integration_test.py`.
+  The workflow referenced a file nobody wrote.
+- Fix (session 2): harness added. Two follow-up bugs in it, both fixed:
+  reference ONNX path (run 40989289071 looked in `app/.cache`; now it walks
+  up to the dir containing `.cache`), and **no NMS**: ONNX exports carry no
+  NMS, so frieren reported 70 boxes for 7 bubbles. Sigmoid was applied on
+  already-probability scores and is now conditional.
+- Verified: run 40989791158 → frieren 7 (matches probe), motl 7, wha 12,
+  ajin 5.
+
 ## Open
+
+### [OPEN] AC3 references are self-generated, not hand-annotated
+- `fixtures/pages.json` `expected` boxes come from the same model. That
+  locks the detector against regressions but is not an independent recall
+  ground truth. To strengthen AC3, hand-annotate one page (wha is the
+  densest) and note it in CHANGELOG.
 
 ### [FIXED] build/integration red: bubble export pip install fails
 - Runs 40985772807 (build) and 40985772949 (integration-test), 2026-10-30.

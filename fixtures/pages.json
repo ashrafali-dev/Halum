@@ -1,10 +1,69 @@
 {
-  "_comment": "Manga pages used for local checks. n = page count. If `file` is absent, fetch by url and crop the account footer band (a third-party watermark frame that must not be counted as content). Downloading is CI-only per D3.",
+  "_comment": "Manga pages used by tools/integration_test.py (CI only, D3). 'expected' are reference bubble boxes [x1,y1,x2,y2] in page pixels; AC3 asserts recall >= 0.80 against them with IoU >= 0.50. Reference numbers were produced by the same model via onnxruntime (run 40989791158) and cross-checked with the probe count on Frieren; they lock the detector in place, so a real recall regression (model swap, preprocessing change) turns the workflow red. Re-derive only with a documented reason in .halum/BUGS.md.",
   "source": "zbu1/manga-translator-cli docs/",
   "pages": [
-    { "file": "frieren.jpg",  "source_name": "frieren_raw.jpg",  "n": 0, "note": "836x1200 full page (probe: 7 bubbles)" },
-    { "file": "motl.jpg",     "source_name": "motl_raw.png",    "n": 0 },
-    { "file": "wha.jpg",      "source_name": "wha_raw.jpg",     "n": 0 },
-    { "file": "ajin.jpg",     "source_name": "ajin_raw.jpg",    "n": 0 }
+    {
+      "file": "frieren.jpg",
+      "source_name": "frieren_raw.jpg",
+      "width": 836,
+      "height": 1200,
+      "n": 0,
+      "note": "836x1200 full page (probe: 7 bubbles)",
+      "expected": [
+        [41.1, 0.5, 254.3, 273.0],
+        [604.7, 84.1, 773.0, 308.8],
+        [452.7, 909.6, 637.4, 1199.0],
+        [569.0, 482.5, 782.2, 719.1],
+        [122.7, 486.8, 356.5, 717.6],
+        [320.4, 1.2, 582.8, 449.9],
+        [50.6, 931.4, 250.4, 1159.4]
+      ]
+    },
+    {
+      "file": "motl.jpg",
+      "source_name": "motl_raw.png",
+      "n": 0,
+      "expected": [
+        [627.5, 569.1, 787.8, 787.1],
+        [451.0, 910.2, 619.1, 1168.6],
+        [319.2, 916.2, 419.6, 1169.9],
+        [78.9, 962.8, 183.9, 1186.4],
+        [315.3, 562.7, 427.4, 863.7],
+        [66.2, 621.9, 168.5, 873.1],
+        [687.7, 119.3, 810.3, 299.1]
+      ]
+    },
+    {
+      "file": "wha.jpg",
+      "source_name": "wha_raw.jpg",
+      "n": 0,
+      "note": "dense-dialogue page: 12 bubbles incl. four < 60 px ones (AC9 material)",
+      "expected": [
+        [546.3, 676.6, 657.3, 793.0],
+        [542.7, 71.5, 656.8, 197.4],
+        [117.6, 71.9, 265.5, 231.7],
+        [334.4, 76.9, 426.2, 203.9],
+        [533.7, 465.7, 620.6, 579.3],
+        [109.5, 468.4, 230.1, 599.9],
+        [117.9, 678.2, 185.3, 740.3],
+        [198.8, 677.8, 248.3, 742.5],
+        [71.5, 692.6, 127.2, 760.7],
+        [274.9, 739.9, 299.2, 784.1],
+        [88.5, 223.4, 107.8, 262.6],
+        [267.1, 694.4, 291.9, 731.1]
+      ]
+    },
+    {
+      "file": "ajin.jpg",
+      "source_name": "ajin_raw.jpg",
+      "n": 0,
+      "expected": [
+        [752.0, 1019.5, 886.0, 1189.8],
+        [80.9, 543.8, 207.4, 741.2],
+        [774.4, 356.6, 902.7, 570.3],
+        [458.7, 1180.7, 529.8, 1310.1],
+        [109.8, 1062.7, 171.3, 1166.5]
+      ]
+    }
   ]
 }
