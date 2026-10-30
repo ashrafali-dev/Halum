@@ -28,7 +28,7 @@ jobs:
       - name: Python deps
         run: |
           python3 -m pip install --quiet --upgrade pip
-          python3 -m pip install --quiet numpy pillow opencv-python-headless onnxruntime pytest
+          python3 -m pip install --quiet "ultralytics==8.4.193" onnxruntime numpy pillow
 
       - name: Model cache
         uses: actions/cache@v4
@@ -45,8 +45,8 @@ jobs:
       - name: Integration suite
         run: python3 tools/integration_test.py --fixtures fixtures --models app/src/main/assets/models --out build/integration
 
-      - name: JVM end-to-end (Lens replay -> parser -> planner -> bridge mock)
-        run: ./gradlew --no-daemon testDebugUnitTest --tests 'app.halum.integration.*'
+      # There is deliberately no Gradle step here: Gradle's JVM tests run in
+      # build.yml. This job exists so a red run names the failing check.
 
       - uses: actions/upload-artifact@v4
         if: always()

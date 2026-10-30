@@ -87,11 +87,19 @@ def main() -> int:
     args = ap.parse_args()
 
     os.makedirs(args.work, exist_ok=True)
-    onnx_path = yolo_to_onnx(args.pt, args.work)
+    onnx_path = os.path.join(args.work, "bubble.onnx")
+    if os.path.exists(onnx_path):
+        # Cached: CI caches .cache/models across runs.
+        print(f"[export_bubble] reusing {onnx_path}")
+    else:
+        onnx_path = yolo_to_onnx(args.pt, args.work)
     tflite = onnx_to_tflite(onnx_path, args.work)
     dest = os.path.join(args.out, "bubble.tflite")
     shutil.copyfile(tflite, dest)
     print(f"[export_bubble] wrote {dest} {os.path.getsize(dest) / 1e6:.2f} MB")
+    # The ONNX stays in --work as the integration suite's reference model
+    # (integration_test.py runs onnxruntime; the app never ships the ONNX).
+    print(f"[export_bubble] reference onnx kept at {onnx_path}")
     return 0
 
 
