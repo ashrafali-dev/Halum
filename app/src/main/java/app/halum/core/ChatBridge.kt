@@ -63,6 +63,18 @@ class ChatBridge(
         const val READY_TIMEOUT_MS = 30_000L
         const val REPLY_TIMEOUT_MS = 120_000L
         const val POLL_INTERVAL_MS = 250L
+        const val MAX_BARE_CHARS = 500
+
+        private val REFUSAL_MARKERS =
+            listOf(
+                "i'm sorry",
+                "i am sorry",
+                "i can't",
+                "i cannot",
+                "as an ai",
+                "sorry, i",
+                "unable to",
+            )
     }
 
     var state: State = State.IDLE
@@ -91,7 +103,7 @@ class ChatBridge(
             for (tryNo in 0 until MAX_RETRIES) {
                 if (cancelled) return finish(State.CANCELLED, results.asList(), attempts)
                 attempts++
-                val reply = sendAwait(PromptBuilder.build(batchTexts)) ?: continue
+                val reply = sendAwait(PromptBuilder.build(batchTexts)) ?: break
                 val parsed = ResponseParser.parse(reply, batchTexts.size)
                 if (parsed.complete) {
                     batchOutcome = parsed.translations
@@ -101,6 +113,7 @@ class ChatBridge(
             if (batchOutcome == null) {
                 // D6 fallback: one block per send, max MAX_RETRIES per block.
                 batchOutcome = retryIndividually(batchTexts)
+                attempts += retryAttempts
             }
             batch.indices.forEachIndexed { k, globalIndex -> results[globalIndex] = batchOutcome[k] }
         }
@@ -113,16 +126,36 @@ class ChatBridge(
         )
     }
 
+    /** Sends counted by [retryIndividually], included in the outcome's attempts. */
+    private var retryAttempts = 0
+
     private fun retryIndividually(batchTexts: List<String>): List<String?> {
+        retryAttempts = 0
         val out = arrayOfNulls<String>(batchTexts.size)
         for (i in batchTexts.indices) {
             repeat(MAX_RETRIES) {
                 if (cancelled || out[i] != null) return@repeat
+                retryAttempts++
                 val reply = sendAwait(PromptBuilder.build(listOf(batchTexts[i]))) ?: return@repeat
-                out[i] = ResponseParser.parse(reply, 1).translations.firstOrNull()
+                // Single-block replies are often bare text with no marker.
+                val parsed = ResponseParser.parse(reply, 1)
+                out[i] = parsed.translations.firstOrNull() ?: bareText(reply)
             }
         }
         return out.asList()
+    }
+
+    /**
+     * A one-block reply that came back as prose. Short refusals ("as an AI…")
+     * are never placed into the artwork — that would print chatbot chatter on
+     * the page — so only plausible translations are accepted.
+     */
+    private fun bareText(reply: String): String? {
+        val text = reply.trim()
+        if (text.isEmpty() || text.length > MAX_BARE_CHARS) return null
+        val lower = text.lowercase()
+        if (REFUSAL_MARKERS.any { lower.contains(it) }) return null
+        return text
     }
 
     /** Returns null on timeout/cancel; the caller decides what to retry. */

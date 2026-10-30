@@ -150,7 +150,9 @@ object Proto {
             varint((field.toLong() shl 3) or wireType.toLong())
         }
 
-        private fun varint(value: Long) {
+        private fun varint(
+            value: Long,
+        ) {
             var v = value
             while (true) {
                 if (v and 0x7FL.inv() == 0L) {

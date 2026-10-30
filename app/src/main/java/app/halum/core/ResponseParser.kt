@@ -31,23 +31,27 @@ object ResponseParser {
         blockCount: Int,
     ): Result {
         if (blockCount <= 0) return Result(emptyList(), Mode.NONE, emptyList())
-        val lines = reply.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        // Indentation is kept only to tell a wrapped line from a new block.
+        val raw = reply.lines().filter { it.isNotBlank() }
+        val lines = raw.map { it.trim() }
 
         val byMarker = mutableMapOf<Int, StringBuilder>()
         var sawMarker = false
-        for (line in lines) {
-            val m = MARKER.find(line) ?: continue
-            sawMarker = true
-            val n = m.groupValues[1].toIntOrNull() ?: continue
-            if (n !in 1..blockCount) continue
-            val text = m.groupValues[2].trim()
-            if (text.isEmpty()) continue
-            byMarker
-                .getOrPut(n) { StringBuilder() }
-                .let {
-                    if (it.isNotEmpty()) it.append(' ')
-                    it.append(text)
+        for ((line, original) in lines.zip(raw)) {
+            val m = MARKER.find(line)
+            if (m != null) {
+                sawMarker = true
+                val n = m.groupValues[1].toIntOrNull()
+                val text = m.groupValues[2].trim()
+                if (n != null && n in 1..blockCount) {
+                    byMarker.getOrPut(n) { StringBuilder() }
+                    if (text.isNotEmpty()) byMarker.getValue(n).appendText(text)
                 }
+            } else if (original.startsWith(" ") || original.startsWith("\t")) {
+                // An indented line continues the block above it; an indented
+                // line before any marker is chat noise and is dropped.
+                byMarker.keys.maxOrNull()?.let { byMarker.getValue(it).appendText(line) }
+            }
         }
         if (sawMarker) {
             val values = (1..blockCount).map { byMarker[it]?.toString() }
@@ -59,5 +63,10 @@ object ResponseParser {
             return Result(lines, Mode.POSITIONAL, emptyList())
         }
         return Result(List(blockCount) { null }, Mode.NONE, (1..blockCount).toList())
+    }
+
+    private fun StringBuilder.appendText(text: String) {
+        if (isNotEmpty()) append(' ')
+        append(text)
     }
 }

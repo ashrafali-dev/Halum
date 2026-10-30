@@ -76,26 +76,24 @@ class ChatBridgeTest {
 
     @Test
     fun `never-ready page times out instead of injecting`() {
-        val page =
-            object : ChatBridge.ChatPage {
-                override fun isReady() = false
-
-                override fun inject(text: String) = error("must not inject before ready")
-
-                override fun lastReply(): String? = null
-
-                override fun newConversation() = Unit
-            }
+        val page = object : ChatBridge.ChatPage {
+            override fun isReady() = false
+            override fun inject(text: String) = error("must not inject before ready")
+            override fun lastReply(): String? = null
+            override fun newConversation() = Unit
+        }
         val out = bridge(page).translate(listOf("one"))
         assertEquals(ChatBridge.State.TIMED_OUT, out.state)
     }
 
     @Test
-    fun `silent chatbot retries then fails honestly`() {
-        val page = FakePage({ null })
+    fun `useless chatbot retries then fails honestly`() {
+        // The chatbot answers, just uselessly (no markers). Timeouts are
+        // covered separately; this test needs replies so the ladder runs.
+        val page = FakePage({ "I'm sorry, I can't help with that." })
         val out = bridge(page).translate(listOf("one"))
         assertEquals(ChatBridge.State.FAILED, out.state)
-        assertEquals(ChatBridge.MAX_RETRIES + ChatBridge.MAX_RETRIES, out.attempts)
+        assertEquals(ChatBridge.MAX_RETRIES, out.attempts)
         assertEquals(listOf(0), out.missing)
     }
 
@@ -124,13 +122,10 @@ class ChatBridgeTest {
         val page =
             object : ChatBridge.ChatPage {
                 override fun isReady() = true
-
                 override fun inject(text: String) {
                     b.cancel()
                 }
-
                 override fun lastReply(): String? = null
-
                 override fun newConversation() = Unit
             }
         b = ChatBridge(page, clock)
