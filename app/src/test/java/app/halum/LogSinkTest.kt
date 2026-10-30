@@ -16,7 +16,11 @@ class LogSinkTest {
     fun installSink() {
         Log.sink =
             object : Log.Sink {
-                override fun write(priority: Int, tag: String, message: String) {
+                override fun write(
+                    priority: Int,
+                    tag: String,
+                    message: String,
+                ) {
                     captured += "$priority|$tag|$message"
                 }
             }

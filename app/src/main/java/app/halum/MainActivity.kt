@@ -6,12 +6,12 @@ import android.graphics.Color
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
-import android.widget.EditText
-import android.widget.LinearLayout
 import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.EditText
+import android.widget.LinearLayout
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import app.halum.databinding.ActivityMainBinding
@@ -22,7 +22,6 @@ import app.halum.util.Log
  * Pipeline wiring arrives in Phase 3; this activity owns view lifecycle only.
  */
 class MainActivity : AppCompatActivity() {
-
     private lateinit var binding: ActivityMainBinding
 
     private var dragging = false
@@ -79,7 +78,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun configureWebView(web: WebView, uaSuffix: String) {
+    private fun configureWebView(
+        web: WebView,
+        uaSuffix: String,
+    ) {
         web.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -96,28 +98,33 @@ class MainActivity : AppCompatActivity() {
         }
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
         web.setBackgroundColor(Color.BLACK)
-        web.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String) {
-                Log.i(TAG, "PAGE_FINISHED: url=${url.take(120)}")
+        web.webViewClient =
+            object : WebViewClient() {
+                override fun onPageFinished(
+                    view: WebView,
+                    url: String,
+                ) {
+                    Log.i(TAG, "PAGE_FINISHED: url=${url.take(120)}")
+                }
             }
-        }
     }
 
     private fun openUrlPrompt() {
-        val input = EditText(this).apply {
-            hint = "https://"
-            setText(binding.mainWebView.url ?: START_URL)
-            setSingleLine()
-        }
-        AlertDialog.Builder(this)
+        val input =
+            EditText(this).apply {
+                hint = "https://"
+                setText(binding.mainWebView.url ?: START_URL)
+                setSingleLine()
+            }
+        AlertDialog
+            .Builder(this)
             .setTitle(R.string.action_open_url)
             .setView(input)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 input.text?.toString()?.trim()?.takeIf { it.startsWith("http") }?.let {
                     binding.mainWebView.loadUrl(it)
                 }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
+            }.setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
@@ -125,7 +132,10 @@ class MainActivity : AppCompatActivity() {
         currentMode = mode
     }
 
-    fun setProgress(percent: Int, label: String) {
+    fun setProgress(
+        percent: Int,
+        label: String,
+    ) {
         binding.progress.progress = percent
         binding.progressText.text = label
     }
