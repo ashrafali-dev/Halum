@@ -298,10 +298,13 @@ def check_inpainter(models_dir: str, out_dir: str) -> Result:
         if mask_area == 0:
             continue
 
+        method = "telea"
+        cleaned = cv2.inpaint(img, mask, 3, cv2.INPAINT_TELEA)
         if mask_area >= INPAINT_LARGE_AREA and migan is not None:
-            cleaned, method = migan(img, mask), "migan"
-        else:
-            cleaned, method = cv2.inpaint(img, mask, 3, cv2.INPAINT_TELEA), "telea"
+            try:
+                cleaned, method = migan(img, mask), "migan"
+            except Exception as exc:  # noqa: BLE001
+                print(f"    {file}: MI-GAN failed ({exc}); Telea fallback", flush=True)
 
         diff = np.abs(cleaned.astype(np.int16) - img.astype(np.int16))
         inside = diff[mask > 0]
@@ -389,17 +392,29 @@ def _load_migan(models_dir: str):
         return None
 
     sess = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
-    inp = sess.get_inputs()[0]
+    inputs = {i.name: i for i in sess.get_inputs()}
     out_name = sess.get_outputs()[0].name
     size = 512
+    # Two export shapes exist: a 4-channel [rgb,mask] tensor (probe's layout)
+    # and a two-input graph named image + mask (the pipeline export). Detect.
+    two_input = "mask" in inputs and len(inputs) >= 2
 
     def run(rgb, mask):
         h, w = rgb.shape[:2]
-        img = np.asarray(Image.fromarray(rgb).resize((size, size)))
-        m = np.asarray(Image.fromarray(mask).resize((size, size))) / 255.0
-        x = np.concatenate([img / 255.0, m[:, :, None]], axis=2)[None].astype(np.float32)
-        y = sess.run([out_name], {inp.name: x})[0][0]
-        y = np.clip(y, 0, 1)
+        img = np.asarray(Image.fromarray(rgb).resize((size, size)), dtype=np.float32) / 255.0
+        m = np.asarray(Image.fromarray(mask).resize((size, size)), dtype=np.float32) / 255.0
+        if two_input:
+            feed = {
+                inputs["image"].name: img[None],
+                inputs["mask"].name: m[None, :, :, None],
+            }
+        else:
+            feed = {
+                next(iter(inputs.values())).name: np.concatenate(
+                    [img, m[:, :, None]], axis=2
+                )[None].astype(np.float32)
+            }
+        y = np.clip(sess.run([out_name], feed)[0][0], 0, 1)
         patch = Image.fromarray((y * 255).astype(np.uint8)).resize((w, h))
         merged = rgb.copy()
         sel = mask > 0
