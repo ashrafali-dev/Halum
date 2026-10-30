@@ -35,6 +35,13 @@ class OverlayView
             val color: Int = Color.BLACK,
         )
 
+        /** A placement hit by a long-press, with its index into [placements]. */
+        data class Hit(
+            val index: Int,
+            val text: String,
+            val box: BubbleClassifier.Box,
+        )
+
         private val placements = mutableListOf<Placement>()
         private val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG)
         private val textPaint =
@@ -82,6 +89,29 @@ class OverlayView
         }
 
         val isEmpty: Boolean get() = placements.isEmpty()
+
+        /** The topmost placement containing (x, y) in view pixels, or null. */
+        fun hitAt(
+            x: Float,
+            y: Float,
+        ): Hit? {
+            for (i in placements.indices.reversed()) {
+                val p = placements[i]
+                if (p.box.contains(x, y)) return Hit(i, p.text, p.box)
+            }
+            return null
+        }
+
+        /** Q2 level 3: replace one placement's text and repaint immediately. */
+        fun editAt(
+            index: Int,
+            text: String,
+        ) {
+            val p = placements.getOrNull(index) ?: return
+            placements[index] = p.copy(text = text)
+            Log.i(TAG, "OVERLAY_EDIT: index=$index len=${text.length}")
+            invalidate()
+        }
 
         override fun onDraw(canvas: Canvas) {
             for (p in placements) {

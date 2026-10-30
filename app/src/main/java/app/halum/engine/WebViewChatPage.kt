@@ -22,6 +22,8 @@ class WebViewChatPage(
     private val webView: WebView,
     private val script: String,
     private val timeoutMs: Long = 5_000,
+    /** Q1: told once when the chat UI could not be recognised. */
+    private val onBridgeFail: ((reason: String) -> Unit)? = null,
 ) : ChatBridge.ChatPage {
     private val ready = CountDownLatch(1)
     private val main = Handler(Looper.getMainLooper())
@@ -55,7 +57,24 @@ class WebViewChatPage(
 
     override fun inject(text: String) {
         val quoted = org.json.JSONObject.quote(text)
-        await("window.halum.inject($quoted)")
+        val raw = await("window.halum.inject($quoted)") ?: return
+        // Q1: the script returns {ok,inputFound,submitFound,adapter}; log the
+        // adapter choice and a precise failure reason instead of silently
+        // no-op'ing when the chat UI was not recognised.
+        runCatching {
+            val o = org.json.JSONTokener(raw).nextValue() as? org.json.JSONObject ?: return@runCatching
+            val adapter = o.optString("adapter", "none")
+            val inputFound = o.optBoolean("inputFound")
+            val submitFound = o.optBoolean("submitFound")
+            if (o.optBoolean("ok")) {
+                Log.i(TAG, "BRIDGE_ADAPTER: host=${webView.url ?: "?"} adapter=$adapter " +
+                    "inputFound=$inputFound submitFound=$submitFound")
+            } else {
+                val reason = o.optString("reason", "unknown")
+                Log.w(TAG, "BRIDGE_FAIL: reason=$reason adapter=$adapter")
+                onBridgeFail?.invoke(reason)
+            }
+        }
     }
 
     override fun lastReply(): String? {

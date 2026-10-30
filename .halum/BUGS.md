@@ -112,3 +112,11 @@ Format: `[OPEN|FIXING|FIXED] short title` — symptom, root cause, fix, run id.
 - Tiny bubbles (< 60 px) absent from the Frieren sample; AC9 unproven until
   a dense-dialogue fixture exists.
 - `armeabi-v7a` TFLite delegate coverage must be checked at build time.
+
+### [OPEN] HttpTransport passes width/height 0 to UploadBody
+- `HttpTransport.post()` calls `UploadBody.build(bytes, 0, 0)`, so the
+  `processed_image_dimensions` part is always `0,0`. The Lens request also
+  carries real dimensions via `LensProtocol.Request`, so decode works, but the
+  multipart dimension hint is wrong. Fix when the capture path lands in Step 4
+  testing: thread width/height through `LensTransport.post` or build the body
+  in `LensPort`.

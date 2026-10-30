@@ -50,6 +50,20 @@
                 android:layout_height="wrap_content"
                 android:text="@string/action_open_url" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTranslate"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/action_translate_panel" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSettings"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/action_settings" />
+
             <ProgressBar
                 android:id="@+id/progress"
                 style="?android:attr/progressBarStyleHorizontal"
