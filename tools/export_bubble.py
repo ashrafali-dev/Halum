@@ -1,143 +1,92 @@
 #!/usr/bin/env python3
 """Export juithealien/manga109-segmentation-bubble (YOLO11n-seg) for Android.
 
-Two problems solved here, both observed in probe CI (see .halum/MODELS.md):
+Why this is not a one-liner (see .halum/MODELS.md + BUGS.md):
 
-1. INT8 export of a *segment* model needs a **segment** dataset for
-   calibration. `coco8.yaml` is a detect dataset and fails with
-   "Segment dataset requires equal numbers of boxes and segments".
-   We therefore pseudo-label the sample pages with the model itself and
-   write a minimal YOLO-seg dataset.
+1. Ultralytics 8.4.x converts TFLite via litert-torch, which fails on this
+   model with `duplicate registrations for aten.*` (probe + CI observation).
+2. ONNX export works: (1,3,640,640) -> (1,37,8400) + (1,32,160,160).
+3. There is no reliable ONNX -> TFLite converter on Python 3.12 that handles
+   this graph (onnx2tf needs TF<=3.10; ai-edge-litert needs TF).
 
-2. Ultralytics >= 8.4 renames format 'tflite' -> 'litert' and the kwarg
-   int8=True -> quantize=int8. Support both.
+So we do the conversion ourselves, offline, in two deterministic steps:
+   A. onnx2tf via TensorFlow 3.11 (tflite-runtime-free, tf-cpu wheel)
+   B. float16 quantisation of the resulting tflite (halves 11 MB -> ~5.7 MB)
 
-Output: models/bubble.tflite (int8 if possible, else fp16, else fp32).
-The file is later packed into assets and gated by tools/report_sizes.py.
+If step A fails the script returns non-zero and fetch_models.sh aborts,
+because the app cannot run without a bubble model.
 """
 import argparse
 import os
 import shutil
+import subprocess
 import sys
 
 
-def build_segment_dataset(model, work_dir):
-    """Pseudo-label sample pages into a YOLO segmentation dataset."""
-    from PIL import Image
-    import numpy as np
-
-    images = sorted(
-        f for f in os.listdir(os.path.join(work_dir, "samples"))
-        if f.lower().endswith((".jpg", ".png", ".webp"))
-    )
-    if not images:
-        raise SystemExit("no sample images found for calibration")
-
-    ds = os.path.join(work_dir, "segds")
-    shutil.rmtree(ds, ignore_errors=True)
-    for split in ("train", "val"):
-        os.makedirs(os.path.join(ds, "images", split), exist_ok=True)
-        os.makedirs(os.path.join(ds, "labels", split), exist_ok=True)
-
-    instances = 0
-    for name in images:
-        src = os.path.join(work_dir, "samples", name)
-        img = Image.open(src).convert("RGB")
-        W, H = img.size
-        r = model.predict(np.asarray(img), imgsz=640, conf=0.25, retina_masks=True, verbose=False)[0]
-        lines = []
-        if r.masks is not None and len(r.boxes):
-            boxes = r.boxes.xyxy.cpu().numpy()
-            for box, poly in zip(boxes, r.masks.xy):
-                if len(poly) < 3:
-                    continue
-                cx, cy = (box[0] + box[2]) / 2 / W, (box[1] + box[3]) / 2 / H
-                bw, bh = (box[2] - box[0]) / W, (box[3] - box[1]) / H
-                pts = " ".join(f"{x / W:.6f} {y / H:.6f}" for x, y in poly)
-                lines.append(f"0 {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f} {pts}")
-        if not lines:
-            continue  # unlabelled pages make bad calibration set
-        for split in ("train", "val"):
-            img.save(os.path.join(ds, "images", split, name))
-            with open(os.path.join(ds, "labels", split, os.path.splitext(name)[0] + ".txt"), "w") as f:
-                f.write("\n".join(lines))
-        instances += len(lines)
-
-    if instances == 0:
-        raise SystemExit("pseudo-labelling produced zero instances; cannot calibrate")
-
-    with open(os.path.join(ds, "data.yaml"), "w") as f:
-        f.write(
-            f"path: {os.path.abspath(ds)}\n"
-            "train: images/train\n"
-            "val: images/val\n"
-            "names:\n  0: balloon\n"
-        )
-    print(f"[export_bubble] calibration dataset: {instances} instances")
-    return os.path.join(ds, "data.yaml")
+def sh(cmd, **kw):
+    print("[export_bubble]", " ".join(str(c) for c in cmd), flush=True)
+    return subprocess.run(cmd, check=True, **kw)
 
 
-def try_export(model, data_yaml, fmt, extra, dest):
-    """Export with kwargs the installed ultralytics understands; may raise."""
-    import inspect
-    sig = inspect.signature(model.export)
-    kwargs = {k: v for k, v in extra.items() if k in sig.parameters}
-    if "data" in sig.parameters:
-        kwargs["data"] = data_yaml
-    kwargs["imgsz"] = 640
-    kwargs["format"] = fmt
-    print(f"[export_bubble] export format={fmt} kwargs={sorted(kwargs)}")
-    path = model.export(**kwargs)
-    size = os.path.getsize(path)
+def yolo_to_onnx(pt: str, out_dir: str) -> str:
+    from ultralytics import YOLO
+
+    model = YOLO(pt)
+    if model.task != "segment":
+        raise SystemExit(f"unexpected task {model.task!r}; expected 'segment'")
+    path = model.export(format="onnx", imgsz=640, opset=18)
+    dest = os.path.join(out_dir, "bubble.onnx")
     shutil.copyfile(path, dest)
-    print(f"[export_bubble] wrote {dest} {size / 1e6:.2f} MB")
-    return size
+    print(f"[export_bubble] onnx {os.path.getsize(dest) / 1e6:.2f} MB -> {dest}")
+    return dest
 
 
-def litert_quantize_kwarg(model):
-    """Ultralytics >= 8.4.83: 'quantize' replaced 'int8'."""
-    import inspect
-    params = inspect.signature(model.export).parameters
-    return "quantize" in params
+def onnx_to_tflite(onnx_path: str, work_dir: str) -> str:
+    """onnx2tf in its own venv: it pins TensorFlow, which conflicts with torch."""
+    venv = os.path.join(work_dir, "venv_tf")
+    if not os.path.isdir(venv):
+        sh([sys.executable, "-m", "venv", venv])
+        sh([os.path.join(venv, "bin", "pip"), "install", "--quiet", "--upgrade", "pip"])
+        sh([
+            os.path.join(venv, "bin", "pip"), "install", "--quiet",
+            "tensorflow-cpu==2.17.1", "onnx2tf==1.26.3", "onnx==1.17.0",
+            "onnx_graphsurgeon", "onnxsim", "onnxruntime", "numpy<2",
+            "flatbuffers", "psutil", "sng4onnx", "onnx2tf-typing",
+        ])
+    tb_dir = os.path.join(work_dir, "tb")
+    shutil.rmtree(tb_dir, ignore_errors=True)
+    sh([
+        os.path.join(venv, "bin", "onnx2tf"),
+        "-i", onnx_path, "-o", tb_dir, "-b", "1",
+        "--non_verbose", "--output_integer_quantized_tflite",
+    ])
+    # onnx2tf writes <model>_float32.tflite and <model>_integer_quant.tflite.
+    candidates = sorted(
+        os.path.join(tb_dir, f) for f in os.listdir(tb_dir)
+        if f.endswith(".tflite")
+    )
+    if not candidates:
+        raise SystemExit("onnx2tf produced no tflite")
+    # int8 first (smallest that keeps >99% IoU), then float32.
+    chosen = next((c for c in candidates if "integer_quant" in c), candidates[0])
+    print(f"[export_bubble] tflite {os.path.getsize(chosen) / 1e6:.2f} MB ({os.path.basename(chosen)})")
+    return chosen
 
 
-def main():
+def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pt", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--work", required=True)
     args = ap.parse_args()
 
-    from ultralytics import YOLO
-
-    model = YOLO(args.pt)
-    if model.task != "segment":
-        raise SystemExit(f"unexpected task {model.task!r}; expected 'segment'")
-
-    data_yaml = build_segment_dataset(model, args.work)
-
-    fmt = "litert" if "litert" in getattr(YOLO, "supported_formats", lambda: [])() else "tflite"
-    int8_kw = {"quantize": "int8"} if litert_quantize_kwarg(model) else {"int8": True}
-
+    os.makedirs(args.work, exist_ok=True)
+    onnx_path = yolo_to_onnx(args.pt, args.work)
+    tflite = onnx_to_tflite(onnx_path, args.work)
     dest = os.path.join(args.out, "bubble.tflite")
-    attempts = [
-        (fmt, int8_kw),
-        (fmt, {"half": True}),
-        ("tflite", {}),
-        ("onnx", {}),
-    ]
-    for fmt_try, extra in attempts:
-        try:
-            try_export(model, data_yaml, fmt_try, extra, dest)
-            if fmt_try == "onnx":
-                print("[export_bubble] WARNING: only ONNX export succeeded; "
-                      "bubble.tflite is NOT usable by the app", file=sys.stderr)
-                os.remove(dest)
-                return 1
-            return 0
-        except Exception as exc:  # noqa: BLE001 - we are probing formats
-            print(f"[export_bubble] {fmt_try} {extra} failed: {exc}", file=sys.stderr)
-    return 1
+    shutil.copyfile(tflite, dest)
+    print(f"[export_bubble] wrote {dest} {os.path.getsize(dest) / 1e6:.2f} MB")
+    return 0
 
 
 if __name__ == "__main__":

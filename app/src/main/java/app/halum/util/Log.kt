@@ -21,7 +21,8 @@ object Log {
     fun w(tag: String, message: String) = sink.write(5, tag, message)
 
     fun e(tag: String, message: String, tr: Throwable? = null) {
-        sink.write(6, tag, if (tr == null) message else "$message :: ${tr.javaClass.simpleName}: ${tr.message}")
+        val text = if (tr == null) message else "$message :: ${tr.javaClass.simpleName}: ${tr.message}"
+        sink.write(6, tag, text)
     }
 
     /** Only android.util.Log touches Binder; JVM tests redirect via [sink]. */
@@ -30,5 +31,4 @@ object Log {
             android.util.Log.println(priority, tag, message)
         }
     }
-}
 }

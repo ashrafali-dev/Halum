@@ -1,0 +1,10 @@
+{
+  "_comment": "Manga pages used for local checks. n = page count. If `file` is absent, fetch by url and crop the account footer band (a third-party watermark frame that must not be counted as content). Downloading is CI-only per D3.",
+  "source": "zbu1/manga-translator-cli docs/",
+  "pages": [
+    { "file": "frieren.jpg",  "source_name": "frieren_raw.jpg",  "n": 0, "note": "836x1200 full page (probe: 7 bubbles)" },
+    { "file": "motl.jpg",     "source_name": "motl_raw.png",    "n": 0 },
+    { "file": "wha.jpg",      "source_name": "wha_raw.jpg",     "n": 0 },
+    { "file": "ajin.jpg",     "source_name": "ajin_raw.jpg",    "n": 0 }
+  ]
+}
