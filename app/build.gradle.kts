@@ -18,9 +18,15 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // 32-bit is a hard requirement (user device armeabi-v7a).
+        // 32-bit is a hard requirement (user device armeabi-v7a). D21: v0.1.0
+        // ships armeabi-v7a only — OpenCV's per-ABI native libs were ~2x the
+        // APK budget, and with MI-GAN the two-ABI APK was 73 MB (> 60 MB).
+        // Pass -Phalum.arm64=true to build both ABIs.
         ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+            abiFilters += listOf("armeabi-v7a")
+            if (providers.gradleProperty("halum.arm64").orNull == "true") {
+                abiFilters += "arm64-v8a"
+            }
         }
     }
 
