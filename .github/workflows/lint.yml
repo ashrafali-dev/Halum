@@ -1,0 +1,71 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ktlint-detekt:
+    name: ktlint + detekt
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Standalone ktlint so style is enforced before any Gradle config resolves.
+      - name: ktlint
+        run: |
+          curl -sSLo ktlint https://github.com/pinterest/ktlint/releases/download/1.4.1/ktlint
+          chmod +x ktlint
+          ./ktlint --relative "app/src/**/*.kt"
+
+      - name: detekt
+        run: |
+          curl -sSLo detekt-all.jar \
+            https://github.com/detekt/detekt/releases/download/v1.23.7/detekt-cli-1.23.7-all.jar
+          java -jar detekt-all.jar \
+            --config config/detekt.yml \
+            --input app/src/main/java,app/src/test/java \
+            --build-upon-default-config \
+            --report sarif:detekt.sarif \
+            --jvm-target 17
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: detekt-sarif
+          path: detekt.sarif
+          if-no-files-found: ignore
+
+  android-lint:
+    name: android lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0'
+      - name: lintDebug
+        run: ./gradlew --no-daemon lintDebug
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-lint-report
+          path: app/build/reports/lint-results-debug.*
+          if-no-files-found: ignore

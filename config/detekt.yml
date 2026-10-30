@@ -1,0 +1,46 @@
+# Layered on top of detekt's default ruleset (--build-upon-default-config).
+# Keep this small: only rules that matter for a memory-constrained Android app.
+
+complexity:
+  LongMethod:
+    threshold: 80
+  TooManyFunctions:
+    active: false
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 10
+    ignoreDefaultParameters: true
+  CognitiveComplexMethod:
+    threshold: 25
+
+style:
+  MagicNumber:
+    active: false
+  MaxLineLength:
+    maxLineLength: 120
+    excludePackageStatements: true
+    excludeImportStatements: true
+  ReturnCount:
+    max: 5
+  ThrowsCount:
+    max: 3
+  UnusedPrivateMember:
+    active: true
+  WildcardImport:
+    active: true
+
+naming:
+  FunctionNaming:
+    functionPattern: '[a-z][a-zA-Z0-9]*|`[^`]+`'
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][A-Za-z0-9_]*'
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+  SwallowedException:
+    active: false
+
+performance:
+  SpreadOperator:
+    active: false

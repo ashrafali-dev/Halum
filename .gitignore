@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+**/build/
+local.properties
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Models — NEVER committed (D3). Fetched/exported in CI only.
+*.tflite
+*.onnx
+*.pt
+*.npy
+app/src/main/assets/models/*
+!app/src/main/assets/models/.gitkeep
+
+# Probe / scratch
+probe/
+*.log

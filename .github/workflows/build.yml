@@ -1,0 +1,66 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0'
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Fetch + export models
+        run: bash tools/fetch_models.sh
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      - name: Unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - name: Assemble debug
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Size gates (APK <= 60 MB, models <= 35 MB, armeabi-v7a present)
+        run: python3 tools/report_sizes.py app/build/outputs/apk/debug/*.apk app/src/main/assets/models
+
+      - name: Unit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/testDebugUnitTest
+          if-no-files-found: ignore
+
+      - name: APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: halum-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

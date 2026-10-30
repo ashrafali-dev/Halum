@@ -1,0 +1,51 @@
+name: lens-canary
+
+# Live check of the unofficial Lens endpoint. Informational only:
+# it opens/updates an issue on failure and never gates a PR (DECISIONS D2).
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python deps
+        run: python3 -m pip install --quiet requests pillow
+
+      - name: Probe live endpoint
+        id: probe
+        continue-on-error: true
+        env:
+          LENS_COOKIE: ${{ secrets.LENS_COOKIE }}
+        run: |
+          if [ -z "$LENS_COOKIE" ]; then
+            echo "LENS_COOKIE secret is absent; cannot run a live canary."
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 tools/lens_canary.py --image fixtures/bubbles/images/frieren.jpg
+
+      - name: Open or update issue
+        if: steps.probe.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="lens-canary: live Lens endpoint check failed"
+          body="Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}%0A%0AThe unofficial Lens endpoint changed or is rate limiting. Fixtures are unaffected; regenerate fixtures/lens_*.bin once resolved."
+          existing=$(gh issue list --state open --search "$title" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

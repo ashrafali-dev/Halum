@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Speech bubble with a Bengali "হ"-like stroke block. -->
+    <path
+        android:fillColor="#FFFFD54F"
+        android:pathData="M34,30h40a10,10 0 0 1 10,10v22a10,10 0 0 1 -10,10H54l-12,12v-12h-8a10,10 0 0 1 -10,-10V40a10,10 0 0 1 10,-10z" />
+    <path
+        android:fillColor="#FF101014"
+        android:pathData="M42,42h24v4H42zM42,52h24v4H42zM42,62h14v4H42z" />
+</vector>
