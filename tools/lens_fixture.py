@@ -257,13 +257,27 @@ def encode_box(bbox: list[float], width: int, height: int) -> bytes:
     return len_field(1, b)
 
 
+def encode_words(text: str) -> bytes:
+    """One TextLine.word: field 1 repeated Word, field 2 = source text."""
+    return len_field(1, str_field(2, text)) + str_field(2, text)
+
+
 def encode_page(blocks: list[dict], lang: str, width: int, height: int) -> bytes:
+    """Rebuild a ServerResponse from decoded blocks.
+
+    Layout mirrors what `decode_block` reads: TextLayout.paragraphs = 1
+    (repeated) holds one field-1 entry per block; each entry carries
+    lines = 2 (repeated), geometry = 3, language = 5. Text.text_layout = 1,
+    Text.content_language = 2, ObjectsResponse.text = 3,
+    ServerResponse.objects_response = 2.
+    """
     paras = b"".join(
         len_field(
-            2,
-            len_field(1, str_field(2, b["text"])) + len_field(2, encode_box(b["bbox"], width, height)),
+            1,
+            len_field(2, encode_words(b["text"]))
+            + len_field(3, encode_box(b["bbox"], width, height))
+            + str_field(5, b.get("script") or lang),
         )
-        + str_field(5, lang)
         for b in blocks
     )
     text = len_field(1, paras) + str_field(2, lang)
@@ -283,12 +297,13 @@ def check(bin_path: str, json_path: str) -> bool:
                 print(f"   got {got}\n  want {want}", file=sys.stderr)
                 break
         return False
-    rebuilt = encode_page(blocks, blocks[0]["script"], exp["width"], exp["height"])
-    # jspb omits the per-word TextEntityIdentifier etc., so a round trip of
-    # *our* encoder is compared to itself; byte identity with jspb is not
-    # expected. The decode above is the real assertion.
+    rebuilt = encode_page(blocks, blocks[0]["script"] if blocks else "", exp["width"], exp["height"])
+    # Word-level fields (TextEntityIdentifier, separators per word) are not
+    # reconstructed, so byte identity with a live jspb response is not
+    # expected. What must hold is decode(encode(decode(x))) == decode(x).
     if decode_response(rebuilt, exp["width"], exp["height"]) != blocks:
         print(f"[lens_fixture] {bin_path}: our encoder does not round-trip", file=sys.stderr)
+        print(f"   got  {decode_response(rebuilt, exp['width'], exp['height'])}", file=sys.stderr)
         return False
     print(f"[lens_fixture] {bin_path}: {len(blocks)} blocks OK")
     return True

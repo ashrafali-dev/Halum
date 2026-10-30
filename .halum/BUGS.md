@@ -17,7 +17,24 @@ _(none yet)_
 - Verified: run 40989791158 → frieren 7 (matches probe), motl 7, wha 12,
   ajin 5.
 
+### [FIXED] Lens fixtures claimed to be genuine jspb bytes; they are hand-built
+- `fixtures/lens/README.md` and `LensProtocolTest` said the `.bin` files came
+  from jspb `serializeBinary()`. They do not: `tools/lens_fixture.py`
+  `encode_page` built them, and it emitted the paragraph one level too deep
+  (`Layout.1 > 2 > {2:words, 3:box}` instead of `Layout.1 > {2:line, 3:box, 5:lang}`).
+- `--check` still passed because it compared our encoder to itself on a
+  fixture it had produced; the decode-vs-expected half never saw a line.
+- Fix: `encode_page` now emits `TextLine.word` and the paragraph directly
+  under the layout, `--check` asserts `decode(encode(decode(x))) == decode(x)`,
+  README and test doc comments state the self-built caveat, and AC2 now
+  depends on a D2 live capture for independence.
+
 ## Open
+
+### [OPEN] AC2 fixtures are self-built, so AC2 is not yet independent
+- Both `.bin` files and `LensProtocol` were derived from the same proto
+  reading. A wrong field number would still pass. Capture one real response
+  (D2: `BuildConfig.HALUM_CAPTURE` → `lens_capture.bin`) and swap it in.
 
 ### [OPEN] AC3 references are self-generated, not hand-annotated
 - `fixtures/pages.json` `expected` boxes come from the same model. That

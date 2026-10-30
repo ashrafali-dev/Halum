@@ -9,9 +9,9 @@ import java.io.File
 
 /**
  * AC2: replay the committed Lens protobuf fixtures through the real decoder.
- * The fixtures are genuine bytes from the official jspb bindings
- * (fixtures/lens/README.md), so this checks our reader against the reference
- * implementation, not against itself.
+ * The fixtures are hand-built from the proto sources (fixtures/lens/README.md),
+ * from the same reading as this decoder — so a shared field-number mistake
+ * would pass here. Only a D2 live capture makes AC2 independent.
  */
 class LensProtocolTest {
     private fun fixture(name: String): ByteArray = File(fixturesDir, name).readBytes()
