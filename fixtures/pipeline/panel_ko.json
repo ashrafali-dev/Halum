@@ -1,0 +1,21 @@
+{
+  "_comment": "D19 Step 2 fixture. One page's OCR output (Korean), the detected bubble boxes, and the chatbot's scripted [N] reply. PanelPipelineTest runs the real per-panel flow over these and writes overlay placements to build/pipeline/overlay.json. Coordinates are page pixels.",
+  "panel": {"width": 800, "height": 1200},
+  "ocr": [
+    {"text": "안녕하세요", "bbox": [60, 80, 300, 140], "script": "ko"},
+    {"text": "오늘 날씨가 좋네요", "bbox": [60, 150, 360, 210], "script": "ko"},
+    {"text": "네 정말요", "bbox": [520, 600, 720, 650], "script": "ko"},
+    {"text": "그렇죠", "bbox": [530, 660, 700, 705], "script": "ko"},
+    {"text": "작은 속삭임", "bbox": [60, 900, 110, 930], "script": "ko"}
+  ],
+  "bubbles": [
+    [40, 60, 380, 230],
+    [500, 580, 740, 720],
+    [40, 880, 90, 950]
+  ],
+  "reply": "[1] হ্যালো\n[2] আজ আবহাওয়া সুন্দর\n[3] ছোট ফিসফিস",
+  "expected": {
+    "placements": 3,
+    "small": 1
+  }
+}
