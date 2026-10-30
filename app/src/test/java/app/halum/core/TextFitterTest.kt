@@ -31,11 +31,12 @@ class TextFitterTest {
         val f = TextFitter.fit(text, 50f, 20f, at10)
         assertEquals(8f, f.sizeSp, 0f)
         assertTrue(f.truncated)
-        // The wrap limit counts lines but not their width, so every kept line
-        // is ellipsised to fit; the last line must at least signal cut text.
         assertTrue(f.lines.size <= 2)
-        assertTrue(f.lines.any { it.endsWith("…") })
-        f.lines.forEach { assertTrue(at10.width(it, 8f) <= 50f) }
+        // Every kept line fits horizontally and the cut is signalled.
+        f.lines.forEach { assertTrue("'$it' overflows", at10.width(it, 8f) <= 50f) }
+        assertTrue("last line '${
+        f.lines.last()
+        }' must end with an ellipsis", f.lines.last().endsWith("…"))
     }
 
     @Test

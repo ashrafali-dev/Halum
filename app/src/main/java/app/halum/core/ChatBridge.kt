@@ -103,7 +103,11 @@ class ChatBridge(
             for (tryNo in 0 until MAX_RETRIES) {
                 if (cancelled) return finish(State.CANCELLED, results.asList(), attempts)
                 attempts++
-                val reply = sendAwait(PromptBuilder.build(batchTexts)) ?: break
+                val reply = sendAwait(PromptBuilder.build(batchTexts))
+                if (reply == null) {
+                    if (cancelled) return finish(State.CANCELLED, results.asList(), attempts)
+                    break // timeout: do not hammer a silent chatbot
+                }
                 val parsed = ResponseParser.parse(reply, batchTexts.size)
                 if (parsed.complete) {
                     batchOutcome = parsed.translations

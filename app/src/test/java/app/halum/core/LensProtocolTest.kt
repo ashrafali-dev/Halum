@@ -17,7 +17,8 @@ class LensProtocolTest {
     private fun fixture(name: String): ByteArray = File(fixturesDir, name).readBytes()
 
     // org.json:json is a unit-test dependency; android.jar's copy throws.
-    private fun expected(name: String): JSONObject = JSONObject(File(fixturesDir, name).readText())
+    private fun expected(name: String): JSONObject =
+        JSONObject(File(fixturesDir, name).readText())
 
     private val fixturesDir: File
         get() {
@@ -127,16 +128,26 @@ class LensProtocolTest {
 
     @Test
     fun `unknown fields do not break decoding`() {
+        // The fixture is a bare ObjectsResponse (as emitted by the reference
+        // client); wrap it in a real ServerResponse and add future fields.
         val jspb = fixture("lens_ko.bin")
-        val padded =
-            Proto
-                .Writer()
-                .writeMessage(2, jspb)
+        val wrapped =
+            Proto.Writer()
+                .writeMessage(2, jspb) // objects_response
                 .writeString(5, "future-field")
                 .writeVarint(9, 3)
                 .toByteArray()
-        val blocks = LensProtocol.decode(padded, 800, 1200)
-        assertEquals(3, blocks.size)
+        assertEquals(3, LensProtocol.decode(wrapped, 800, 1200).size)
+        // An unknown field *inside* objects_response must be skipped too.
+        val inner = Proto.Reader(jspb)
+        val textField = inner.readLengthDelimited() // objectsResponse.text = 3
+        val objects =
+            Proto.Writer()
+                .writeMessage(11, byteArrayOf(1, 2)) // future field
+                .writeMessage(3, textField.toByteArray())
+                .toByteArray()
+        val nested = Proto.Writer().writeMessage(2, objects).toByteArray()
+        assertEquals(3, LensProtocol.decode(nested, 800, 1200).size)
     }
 
     @Test
