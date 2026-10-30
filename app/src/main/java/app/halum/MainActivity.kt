@@ -60,6 +60,9 @@ class MainActivity : AppCompatActivity() {
     /** True between Start and Stop; scrolling triggers work only in this state. */
     private var running = false
 
+    /** Scroll-triggered runs wait until this time after a failure. */
+    private var nextScrollRunAt = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -129,7 +132,12 @@ class MainActivity : AppCompatActivity() {
                 // Realtime follows the viewport: a scroll makes the old panel
                 // stale, so translate what is visible now. Scan does not — it
                 // walks the page on an explicit Start.
-                if (running && currentMode == Mode.REALTIME) translateVisiblePanel()
+                if (running &&
+                    currentMode == Mode.REALTIME &&
+                    System.currentTimeMillis() >= nextScrollRunAt
+                ) {
+                    translateVisiblePanel()
+                }
             }
         }
         // Q2 level 3: long-press a translation to edit it. The overlay is not
@@ -165,8 +173,24 @@ class MainActivity : AppCompatActivity() {
             )
         val bridge = ChatBridge(page)
         val detector = BubbleDetector.create(Models.store(this))
-        val lens = LensPort.http(cookies = { CookieManager.getInstance().getCookie(LensPort.HOST) }, store = {})
+        // Called from the pipeline worker; CookieManager wants the UI thread.
+        val lens = LensPort.http(cookies = { cookieOnUiThread() }, store = {})
         return AndroidPanelPipeline(lens, detector, bridge)
+    }
+
+    /** Blocks the caller (the pipeline worker) until the UI thread reads the jar. */
+    private fun cookieOnUiThread(): String {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            return CookieManager.getInstance().getCookie(LensPort.HOST).orEmpty()
+        }
+        val out = java.util.concurrent.atomic.AtomicReference("")
+        val latch = java.util.concurrent.CountDownLatch(1)
+        runOnUiThread {
+            out.set(CookieManager.getInstance().getCookie(LensPort.HOST).orEmpty())
+            latch.countDown()
+        }
+        latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
+        return out.get()
     }
 
     /**
@@ -243,6 +267,9 @@ class MainActivity : AppCompatActivity() {
         Log.e(TAG, "PIPE_FAILED: $why")
         setProgress(0, why.take(80))
         Toast.makeText(this, why.take(200), Toast.LENGTH_LONG).show()
+        // Without this a fast failure plus a scroll storm re-fires hundreds of
+        // runs per second; scrolling retries once the cooldown is over.
+        nextScrollRunAt = System.currentTimeMillis() + FAIL_COOLDOWN_MS
     }
 
     private fun deliver(outcome: AndroidPanelPipeline.PanelOutcome?) {
@@ -524,5 +551,8 @@ class MainActivity : AppCompatActivity() {
 
         /** Long-edge cap for a capture; Lens resizes to 640 regardless. */
         private const val MAX_CAPTURE_EDGE = 1280
+
+        /** After a failure, scroll-triggered retries pause this long. */
+        private const val FAIL_COOLDOWN_MS = 3_000L
     }
 }

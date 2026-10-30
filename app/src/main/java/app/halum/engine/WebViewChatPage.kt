@@ -45,12 +45,25 @@ class WebViewChatPage(
             .AtomicInteger(0)
 
     init {
-        webView.settings.javaScriptEnabled = true
-        webView.addJavascriptInterface(Bridge(), JS_NAME)
-        // Install once the page is there; an SPA replaces the DOM after load,
-        // so the script re-defines window.halum harmlessly on every call.
-        webView.evaluateJavascript(script, null)
-        ready.countDown()
+        // Constructed on the pipeline worker, but every WebView call must be on
+        // the thread that owns it. Post the setup rather than touching it here.
+        runOnWebViewThread {
+            webView.settings.javaScriptEnabled = true
+            webView.addJavascriptInterface(Bridge(), JS_NAME)
+            // Install once the page is there; an SPA replaces the DOM after
+            // load, so the script re-defines window.halum harmlessly.
+            webView.evaluateJavascript(script, null)
+            ready.countDown()
+        }
+    }
+
+    /** Runs [block] on the UI thread, or inline when already there. */
+    private fun runOnWebViewThread(block: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            block()
+        } else {
+            main.post(block)
+        }
     }
 
     override fun isReady(): Boolean = await("!!(window.halum && window.halum.ready())") == "true"
@@ -65,7 +78,10 @@ class WebViewChatPage(
         val o = parsed ?: return
         val adapter = o.optString("adapter", "none")
         if (o.optBoolean("ok")) {
-            Log.i(TAG, "BRIDGE_ADAPTER: host=${webView.url ?: "?"} adapter=$adapter")
+            // url is a WebView getter: capture it on the UI thread, log here.
+            val host = AtomicReference("?")
+            runOnWebViewThread { host.set(webView.url ?: "?") }
+            Log.i(TAG, "BRIDGE_ADAPTER: host=${host.get()} adapter=$adapter")
         } else {
             val reason = o.optString("reason", "unknown")
             Log.w(TAG, "BRIDGE_FAIL: reason=$reason adapter=$adapter")
@@ -89,6 +105,12 @@ class WebViewChatPage(
     }
 
     private fun await(expression: String): String? {
+        // The JS interface is installed on the UI thread; do not evaluate
+        // before it exists or onResult has nowhere to land.
+        if (!ready.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+            Log.w(TAG, "bridge not installed within ${timeoutMs}ms")
+            return null
+        }
         val id = nextId.incrementAndGet()
         val latch = CountDownLatch(1)
         val result = AtomicReference<String?>(null)
