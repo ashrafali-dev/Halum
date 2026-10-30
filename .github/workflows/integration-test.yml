@@ -32,7 +32,7 @@ jobs:
       - name: Python deps
         run: |
           python3 -m pip install --quiet --upgrade pip
-          python3 -m pip install --quiet "ultralytics==8.4.193" onnxruntime numpy pillow opencv-python-headless
+          python3 -m pip install --quiet "ultralytics==8.4.193" onnxruntime numpy pillow opencv-python-headless tflite-runtime
 
       - name: Model cache
         uses: actions/cache@v4
@@ -45,6 +45,12 @@ jobs:
         run: bash tools/fetch_models.sh
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      # The one check that exercises the artifact the APK actually ships.
+      # Everything else here runs ONNX through onnxruntime and cannot see
+      # interpreter-creation failures (see the docstring).
+      - name: Shipped tflite allocates
+        run: python3 tools/check_tflite.py app/src/main/assets/models/bubble.tflite
 
       - name: Integration suite
         run: python3 tools/integration_test.py --fixtures fixtures --models app/src/main/assets/models --out build/integration

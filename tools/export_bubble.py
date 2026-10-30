@@ -66,15 +66,16 @@ def onnx_to_tflite(onnx_path: str, work_dir: str) -> str:
     ])
     tb_dir = os.path.join(work_dir, "tb")
     shutil.rmtree(tb_dir, ignore_errors=True)
-    # Not the default flatbuffer_direct backend. It emits a PAD node whose
-    # paddings tensor has the wrong rank, which fails at Interpreter creation
-    # on the device: "pad.cc:123 SizeOfDimension(op_context->paddings, 0) !=
-    # op_context->dims (4 != 1). Node number 0 (PAD) failed to prepare."
-    # onnx2tf's docs list --tflite_backend tf_converter as the remedy for a
-    # node the direct path cannot lower correctly.
+    # No `-b 1`. The ONNX is already batch-1; `-b` rewrites the batch
+    # dimension, and that rewrite is what introduced a leading PAD node whose
+    # paddings tensor has rank 4 — rejected at interpreter creation on device:
+    #   pad.cc:123 SizeOfDimension(op_context->paddings, 0) != op_context->dims
+    #   (4 != 1). Node number 0 (PAD) failed to prepare.
+    # `--tflite_backend tf_converter` is kept: it is the better-tested lowering
+    # of the two onnx2tf backends.
     sh([
         os.path.join(venv, "bin", "onnx2tf"),
-        "-i", onnx_path, "-o", tb_dir, "-b", "1",
+        "-i", onnx_path, "-o", tb_dir,
         "--tflite_backend", "tf_converter",
         "--non_verbose",
     ])
