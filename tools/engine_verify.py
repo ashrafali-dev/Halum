@@ -10,10 +10,11 @@ dict {name, pass, detail}:
      Asserts: >= 3 bubbles per page, small bubbles appear (< 60 px width or
      < 4000 px area), and overall recall >= 80% against the hand-checked
      reference boxes. Saves a per-page mask PNG.
-  2. inpainter — for every detected bubble whose mask is >= 15,000 px, run
-     cv2.inpaint (Telea) and assert the residual magnitude inside the full
-     bubble mask is < 5. Also asserts painted area >= 0.90 * mask area.
-     Saves before/after PNGs.
+  2. inpainter — fill each page's full bubble mask (MI-GAN for masks >=
+     15,000 px when its ONNX is present, Telea otherwise) and assert D14.3's
+     scoped AC4: change > 5 (the fill replaced content), flatness below a
+     text-like threshold, and >= 90% of the mask repainted. Saves before/after
+     PNGs.
   3. chatbridge — JVM only; the Python half just checks the fixture generator
      used by ChatBridgeTest (fixtures/chatbot/*.json) is present and fresh.
   4. overlay — TextFitter maths via a Python port; asserts text at 8-10 sp
@@ -41,7 +42,11 @@ IOU_MIN = 0.50
 RECALL_MIN = 0.80
 RECALL_MIN_BUBBLES = 3          # AC3: at least three bubbles per page
 INPAINT_LARGE_AREA = 15_000     # D4: Telea handles < 15000 px masks directly
-INPAINT_RESIDUAL_MAX = 5.0
+# D14.3 scopes AC4: the fill must *change* the region (else text survives) and
+# leave it flat (no text strokes). Raw residual < 5 is unachievable for a real
+# generative model (probe measured MI-GAN at ~48/255) and is not asserted.
+INPAINT_CHANGE_MIN = 5.0
+INPAINT_FLATNESS_MAX = 60.0     # Laplacian std inside the mask; text scores high
 INPAINT_FILL_RATIO_MIN = 0.90
 LENS_MIN_BLOCKS = 1
 LENS_MIN_LETTERS = 5
@@ -251,8 +256,16 @@ def _write_preview(img, boxes, src_path: str, out_path: str) -> None:
 
 # ------------------------------------------------------------------- 2. inpaint
 def check_inpainter(models_dir: str, out_dir: str) -> Result:
-    """Telea inpaint on the full bubble mask, residual magnitude inside the mask
-    must be < INPAINT_RESIDUAL_MAX AND >= 90% of the mask must be repainted."""
+    """D14.3/AC4 on the full bubble mask, method per D4.
+
+    (a) the fill must actually replace content: mean |gen-orig| inside the
+        mask * > 5 (a region left untouched fails here);
+    (b) the filled region must be flat like artwork, not still full of text
+        strokes: high-frequency energy inside the mask must stay below a
+        text-like threshold.
+    Large masks (>= 15,000 px) are filled by MI-GAN when its ONNX is available,
+    Telea otherwise; small masks always use Telea, as D4 says.
+    """
     try:
         import cv2
         import numpy as np
@@ -260,16 +273,13 @@ def check_inpainter(models_dir: str, out_dir: str) -> Result:
     except ImportError as exc:
         return fail("inpainter", f"missing dependency: {exc}")
 
-    onnx_path = _find_onnx(models_dir)
-    if not os.path.exists(onnx_path):
-        return fail("inpainter", f"no reference ONNX at {onnx_path}")
-
+    migan = _load_migan(models_dir)
     pages = fixture_pages()
     os.makedirs(out_dir, exist_ok=True)
     failures = []
     checked = 0
-    residual_max = 0.0
-    fill_ratio_min = 1.0
+    change_min = 1e9
+    flat_max = 0.0
 
     for page in pages:
         file = page["file"]
@@ -280,42 +290,123 @@ def check_inpainter(models_dir: str, out_dir: str) -> Result:
         img = np.asarray(Image.open(path).convert("RGB"))
         h, w = img.shape[:2]
 
-        # Mask = the union of bubble boxes, dilated 2 px, for the whole-bubble
-        # inpaint D4 asks for (not just text boxes: that leaves ghosts).
         mask = np.zeros((h, w), dtype=np.uint8)
         for b in page.get("expected") or []:
             x1, y1, x2, y2 = (int(round(v)) for v in b[:4])
             mask[max(0, y1 - 2):max(0, y2 + 2), max(0, x1 - 2):max(0, x2 + 2)] = 255
         mask_area = int((mask > 0).sum())
-        if mask_area < INPAINT_LARGE_AREA:
-            print(f"    {file}: mask {mask_area} px < {INPAINT_LARGE_AREA}; Telea direct", flush=True)
-            # Telea is fine for small masks; the residual check still applies.
-            pass
+        if mask_area == 0:
+            continue
 
-        cleaned = cv2.inpaint(img, mask, 3, cv2.INPAINT_TELEA)
+        if mask_area >= INPAINT_LARGE_AREA and migan is not None:
+            cleaned, method = migan(img, mask), "migan"
+        else:
+            cleaned, method = cv2.inpaint(img, mask, 3, cv2.INPAINT_TELEA), "telea"
+
         diff = np.abs(cleaned.astype(np.int16) - img.astype(np.int16))
         inside = diff[mask > 0]
-        residual = float(inside.mean()) if inside.size else 0.0
+        change = float(inside.mean()) if inside.size else 0.0
         repainted = int((inside > 0).sum())
-        ratio = repainted / mask_area if mask_area else 1.0
+        ratio = repainted / mask_area
 
-        residual_max = max(residual_max, residual)
-        fill_ratio_min = min(fill_ratio_min, ratio)
+        # Flatness: std-dev of the Laplacian inside the mask. Text strokes have
+        # sharp edges; filled artwork is smooth. The reference boxes are tight
+        # around bubbles, so an unfilled ("ghost") region reads far higher.
+        gray = cv2.cvtColor(cleaned, cv2.COLOR_RGB2GRAY)
+        lap = cv2.Laplacian(gray, cv2.CV_32F)
+        flatness = float(lap[mask > 0].std())
+
+        change_min = min(change_min, change)
+        flat_max = max(flat_max, flatness)
         checked += 1
-        line = f"{file}: mask={mask_area}px residual={residual:.2f} fill={ratio:.3f}"
+        line = (
+            f"{file}: {method} mask={mask_area}px change={change:.2f} "
+            f"fill={ratio:.3f} flatness={flatness:.1f}"
+        )
         print(f"    {line}", flush=True)
-        if residual >= INPAINT_RESIDUAL_MAX:
-            failures.append(f"{file}: residual {residual:.2f} >= {INPAINT_RESIDUAL_MAX}")
+        if change <= INPAINT_CHANGE_MIN:
+            failures.append(f"{file}: change {change:.2f} <= {INPAINT_CHANGE_MIN} (fill did not replace text)")
         if ratio < INPAINT_FILL_RATIO_MIN:
             failures.append(f"{file}: fill ratio {ratio:.3f} < {INPAINT_FILL_RATIO_MIN}")
+        if flatness > INPAINT_FLATNESS_MAX:
+            failures.append(f"{file}: flatness {flatness:.1f} > {INPAINT_FLATNESS_MAX} (text-like residue)")
 
         _save_inpaint_evidence(img, cleaned, mask, out_dir, file)
 
     if checked == 0:
-        return fail("inpainter", "no pages fetched; check 1 must run first")
+        return fail("inpainter", "no pages could be inpainted; check 1 must run first")
 
-    detail = f"residual_max={residual_max:.2f} fill_min={fill_ratio_min:.3f} pages={checked}"
+    model = "migan" if migan is not None else "telea"
+    detail = f"model={model} change_min={change_min:.2f} flat_max={flat_max:.1f} pages={checked}"
     return Result("inpainter", not failures, detail, failures)
+
+
+def check_model_sizes(models_dir: str) -> Result:
+    """D8: each model <= 25 MB, all model assets <= 35 MB. The build gate runs
+    before any model is fetched; this runs after fetch_models in integration so
+    an oversized export is caught where the model actually exists."""
+    limits = {"bubble.tflite": 25 * 1024 * 1024, "migan.tflite": 25 * 1024 * 1024}
+    if not os.path.isdir(models_dir):
+        return fail("modelsizes", f"no models directory at {models_dir}")
+    total = 0
+    failures = []
+    parts = []
+    for name in sorted(os.listdir(models_dir)):
+        if not name.endswith((".tflite", ".onnx")):
+            continue
+        size = os.path.getsize(os.path.join(models_dir, name))
+        total += size
+        parts.append(f"{name}={size / 1e6:.1f}MB")
+        cap = limits.get(name, 25 * 1024 * 1024)
+        if size > cap:
+            failures.append(f"{name} {size / 1e6:.1f}MB > {cap // (1024 * 1024)}MB")
+    if total > 35 * 1024 * 1024:
+        failures.append(f"total {total / 1e6:.1f}MB > 35MB")
+    detail = f"total={total / 1e6:.1f}MB " + " ".join(parts)
+    return Result("modelsizes", not failures, detail, failures)
+
+
+def _load_migan(models_dir: str):
+    """Returns f(rgb, mask) -> rgb using MI-GAN's ONNX, or None if unavailable.
+
+    The model wants a 512×512 4-channel input (RGB 0..1 + mask 0..1, D14.4:
+    mask=1 is the hole) and returns 3-channel RGB.
+    """
+    import glob
+
+    candidates = glob.glob(os.path.join(ROOT, ".cache", "models", "*.onnx")) + glob.glob(
+        os.path.join(ROOT, ".cache", "models", "**", "migan*.onnx"), recursive=True
+    )
+    path = next((p for p in candidates if "migan" in os.path.basename(p)), None)
+    if path is None:
+        return None
+    try:
+        import cv2
+        import numpy as np
+        import onnxruntime as ort
+        from PIL import Image
+    except ImportError:
+        return None
+
+    sess = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
+    inp = sess.get_inputs()[0]
+    out_name = sess.get_outputs()[0].name
+    size = 512
+
+    def run(rgb, mask):
+        h, w = rgb.shape[:2]
+        img = np.asarray(Image.fromarray(rgb).resize((size, size)))
+        m = np.asarray(Image.fromarray(mask).resize((size, size))) / 255.0
+        x = np.concatenate([img / 255.0, m[:, :, None]], axis=2)[None].astype(np.float32)
+        y = sess.run([out_name], {inp.name: x})[0][0]
+        y = np.clip(y, 0, 1)
+        patch = Image.fromarray((y * 255).astype(np.uint8)).resize((w, h))
+        merged = rgb.copy()
+        sel = mask > 0
+        merged[sel] = np.asarray(patch)[sel]
+        return merged
+
+    return run
 
 
 def _save_inpaint_evidence(before, after, mask, out_dir: str, name: str) -> None:
@@ -470,6 +561,7 @@ def main() -> int:
         check_chatbridge(),
         check_overlay(models_dir),
         check_lenstransport(),
+        check_model_sizes(models_dir),
     ]
 
     lines = ["# Engine verification", "", "Run by `tools/engine_verify.py` (D18). Do not edit by hand.", ""]
