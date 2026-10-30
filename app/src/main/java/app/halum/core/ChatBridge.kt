@@ -100,7 +100,7 @@ class ChatBridge(
         for (batch in BatchPlanner.plan(blocks)) {
             val batchTexts = batch.indices.map { blocks[it] }
             var batchOutcome: List<String?>? = null
-            for (tryNo in 0 until MAX_RETRIES) {
+            repeat(MAX_RETRIES) {
                 if (cancelled) return finish(State.CANCELLED, results.asList(), attempts)
                 attempts++
                 val reply = sendAwait(PromptBuilder.build(batchTexts))
@@ -113,11 +113,19 @@ class ChatBridge(
                     batchOutcome = parsed.translations
                     break
                 }
+                // D6: a partial reply is retried one block per send instead of
+                // resending the whole batch, which mostly yields the same
+                // partial answer and burns the retry budget.
+                if (parsed.mode == ResponseParser.Mode.MARKERS) {
+                    batchOutcome = parsed.translations
+                    break
+                }
             }
-            // D6: a batch that answered nothing (timeout) or only partly is
-            // retried one block per send; the batch verdict is kept otherwise.
+            // D6: a batch that answered nothing (no markers at all, or a
+            // timeout) is retried one block per send.
             if (batchOutcome == null) {
-                batchOutcome = retryIndividually(batchTexts)
+                val fallback = retryIndividually(batchTexts)
+                batchOutcome = fallback
                 attempts += retryAttempts
             }
             batch.indices.forEachIndexed { k, globalIndex -> results[globalIndex] = batchOutcome[k] }

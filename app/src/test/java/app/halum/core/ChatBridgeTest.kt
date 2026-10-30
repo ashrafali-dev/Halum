@@ -31,9 +31,15 @@ private class FakePage(
     }
 
     override fun lastReply(): String? {
-        pending?.let {
-            reply = it
-            pending = null
+        // The reply appears one poll after inject(), as a real DOM update does;
+        // consuming it inside inject() would make sendAwait think the previous
+        // conversation's reply is already new.
+        polls++
+        if (polls % 2 == 0) {
+            pending?.let {
+                reply = it
+                pending = null
+            }
         }
         return reply
     }
