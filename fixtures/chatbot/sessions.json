@@ -1,0 +1,29 @@
+{
+  "_comment": "D18 / AC5 evidence. Each entry is one scripted chatbot session: 'reply' is the single assistant answer the page returns; null means it never answers. 'expect' mirrors what ChatBridgeVerificationTest asserts. The richer multi-turn cases (partial batch fallback, streaming) live in ChatBridgeTest because they need a per-prompt script, not one fixed reply.",
+  "sessions": [
+    {
+      "name": "single_block_marker",
+      "blocks": ["こんにちは"],
+      "reply": "[1] こんにちは",
+      "expect": {"state": "DONE", "missing": []}
+    },
+    {
+      "name": "three_block_batch",
+      "blocks": ["一", "二", "三"],
+      "reply": "[1] এক\n[2] দুই\n[3] তিন",
+      "expect": {"state": "DONE", "missing": []}
+    },
+    {
+      "name": "refusal_is_never_painted",
+      "blocks": ["一"],
+      "reply": "I'm sorry, I can't help with that.",
+      "expect": {"state": "FAILED", "missing": [0]}
+    },
+    {
+      "name": "never_answers_times_out",
+      "blocks": ["one"],
+      "reply": null,
+      "expect": {"state": "TIMED_OUT", "missing": [0]}
+    }
+  ]
+}

@@ -3,9 +3,9 @@
 > **Read this first.** It is the single source of truth for resuming.
 > Update it before every session ends and on every milestone commit.
 
-**Last updated:** 2026-10-30 (session 3)
+**Last updated:** 2026-10-30 (session 4)
 **Branch:** `main`
-**Current phase:** 1 — core (pure JVM); all 5 workflows green on `d9a03b0`
+**Current phase:** 1 complete; Step 1 of D19 (engine verification) written, CI run pending
 
 ## Snapshot
 
@@ -26,6 +26,9 @@
 | Orchestration + full UI | not started |
 | `fixtures/lens_ko.bin`, `fixtures/lens_ja.bin` | committed, self-built (not a live capture) — decode + round-trip green |
 | Core JVM: `Proto`, `LensProtocol`, `BatchPlanner`, `PromptBuilder`, `ResponseParser`, `ChatBridge` | done, 30 unit tests green |
+| Engine verification harness (`tools/engine_verify.py`, D18) | written, CI run pending |
+| `ChatBridgeVerificationTest` + `fixtures/chatbot/sessions.json` | written (bridge replayed from fixture) |
+| MI-GAN fetch (`MIGAN_URLS` in `fetch_models.sh`) | wired to the two D4 mirrors + proxy fallback |
 | Tag `v0.1.0` | not reached |
 
 ## What works
@@ -44,26 +47,33 @@
 
 ## What is broken / blocked
 
-1. **No app functionality yet beyond browsing two WebViews.** Lens, bubbles,
-   translate, inpaint, overlay: none implemented in Kotlin.
+1. **Engines are written but not wired.** Lens/bubble/inpaint/overlay classes
+   exist; `MainActivity` only browses two WebViews (Phase 3 pipeline missing).
 2. **AC3 references are self-generated** (same model). Locks regressions,
    is not independent ground truth — see BUGS.md.
-3. `app/src/main/assets/models/` has only `bubble.tflite`; no inpaint model
-   (`MIGAN_ONNX_URL` empty).
+3. MI-GAN now has documented download URLs in `fetch_models.sh`; whether the
+   export succeeds in CI is unverified until the next integration run.
 4. `memory-test.yml` has never been exercised.
 5. AC2 is self-referential: the `.bin` fixtures were built by our own
    encoder from the same proto reading as the decoder. A live capture (D2)
    is needed before AC2 means anything.
+6. **No Python locally** (Termux) and no android-35 SDK, so `engine_verify.py`
+   and the Kotlin changes can only be validated by CI (D20).
 
-## What is next (exact order)
+## What is next (exact order, D19)
 
-1. `fixtures/pages.json`: hand-annotate `wha.jpg` (densest page) so AC3 has
-   at least one independent reference.
-2. Lens live capture (D2): capture build → `lens_capture.bin` → replace
-   `fixtures/lens_*.bin` + `.expected.json`. AC2 only counts after this.
-3. `memory-test.yml`: exercise it once and make it green.
-4. Phase 2 engines (Lens client, BubbleDetector TFLite, InpaintEngine,
-   Overlay), then UI wiring, then `lens-canary.yml`, then `v0.1.0`.
+1. **Step 1 — watch the engine-verification run.** Push this session; the
+   `integration-test.yml` workflow now runs `tools/engine_verify.py` and
+   uploads `.halum/verify/` + `.halum/ENGINE_VERIFICATION.md`. If any of the
+   five checks fails, the file records the failing detail and the next session
+   fixes that engine before Step 2.
+2. **Step 2 — PanelPipeline** end-to-end on one fixture panel (only after 1).
+3. **Step 3 — ScanChapterRunner + RealtimeRunner**.
+4. **Step 4 — MainActivity wiring**, AC8 + AC10.
+5. **Step 5 — all workflows green**, **Step 6 — tag v0.1.0**.
+
+Independently still open: hand-annotate `wha.jpg` for real AC3 ground truth
+(D18 only locks regressions), and a D2 Lens live capture for AC2.
 
 ## Open questions for the user (blocking, ask before spending CI time)
 
@@ -76,11 +86,11 @@
 
 | # | criterion | status |
 |---|---|---|
-| AC1 | 4 required workflows pass | build+lint+integration green; memory-test pending |
+| AC1 | 4 required workflows pass | build+lint+integration green; memory-test pending; Step 1 verification added to integration |
 | AC2 | Lens replay asserts decoder output | replay green, but self-built fixtures — not independent yet |
-| AC3 | bubble recall >= 80% | harness ready, 36 refs; run pending |
-| AC4 | inpaint residual (scoped, D14.3) | not started |
-| AC5 | bridge state machine streaming/timeout/cancel | green: 30 unit tests (timeout, cancel, refusal, partial) |
+| AC3 | bubble recall >= 80% | 1.000 in run 40990108077; engine_verify re-asserts + small-bubble count |
+| AC4 | inpaint residual (scoped, D14.3) | engine_verify measures Telea residual on full bubble masks; MI-GAN once the export lands |
+| AC5 | bridge state machine streaming/timeout/cancel | green: unit tests + `ChatBridgeVerificationTest` fixture replay |
 | AC6 | scan 20–40 panels < 5 min | not started |
 | AC7 | realtime 1 panel < 5 s | not started |
 | AC8 | overlay persists until scroll | not started |

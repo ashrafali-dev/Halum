@@ -3,6 +3,28 @@
 Session-by-session log. Newest first. Each entry: date, what changed,
 what CI said.
 
+## 2026-10-30 13:xx UTC — session 4
+
+Started D19 Step 1 (engine verification first). No engine wired yet.
+
+- **`tools/engine_verify.py`** — the D18 harness. Five isolated checks:
+  bubble detector (recall, small-bubble count, per-page PNG), inpaint (Telea
+  residual + fill ratio on full bubble masks, before/after PNG), chatbridge
+  (fixture integrity — the JVM test does the replay), overlay (TextFitter
+  port against reference boxes), Lens replay (blocks/letters from `.bin`).
+  Writes evidence to `.halum/verify/` and regenerates
+  `.halum/ENGINE_VERIFICATION.md`.
+- **`ChatBridgeVerificationTest`** + **`fixtures/chatbot/sessions.json`** —
+  the bridge's AC5 evidence: one answered, one refusal, one silent session,
+  replayed through the real `ChatBridge`.
+- **`integration-test.yml`** — added the engine-verification step, the extra
+  JVM test, `opencv-python-headless`, and an `engine-verification` artifact.
+- **`fetch_models.sh`** — MI-GAN now tries the two D4 HuggingFace mirrors
+  (`andraniksargsyan/migan`, `lxfater/inpaint-web`) with a fallback to
+  `MIGAN_UNAVAILABLE: reason=download_failed`; logs size + `pass=true`.
+- **Not verified locally**: Termux has no Python and no android-35 SDK, so
+  the harness and Kotlin compile are CI-only (D20). Next: watch that run.
+
 ## 2026-10-30 06:2x UTC — session 3
 
 All five workflows green on `d9a03b0`.

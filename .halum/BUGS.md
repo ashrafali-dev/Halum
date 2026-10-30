@@ -34,6 +34,12 @@ Format: `[OPEN|FIXING|FIXED] short title` — symptom, root cause, fix, run id.
   reading. A wrong field number would still pass. Capture one real response
   (D2: `BuildConfig.HALUM_CAPTURE` → `lens_capture.bin`) and swap it in.
 
+### [OPEN] engine_verify.py never ran before this session's CI
+- Written 2026-10-30 session 4; the only validation is a careful read, because
+  the Termux device has no Python (D20 forbids local test runs). If a check
+  fails its first run, the failure detail lands in `.halum/ENGINE_VERIFICATION.md`
+  and `.halum/verify/`; fix that engine before Step 2.
+
 ### [OPEN] AC3 references are self-generated, not hand-annotated
 - `fixtures/pages.json` `expected` boxes come from the same model. That
   locks the detector against regressions but is not an independent recall

@@ -21,3 +21,7 @@ app/src/main/assets/models/*
 # Probe / scratch
 probe/
 *.log
+
+# D18 evidence PNGs/JSON are CI artifacts, not source. The summary file
+# .halum/ENGINE_VERIFICATION.md *is* committed (memory protocol).
+.halum/verify/

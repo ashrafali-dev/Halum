@@ -32,7 +32,7 @@ jobs:
       - name: Python deps
         run: |
           python3 -m pip install --quiet --upgrade pip
-          python3 -m pip install --quiet "ultralytics==8.4.193" onnxruntime numpy pillow
+          python3 -m pip install --quiet "ultralytics==8.4.193" onnxruntime numpy pillow opencv-python-headless
 
       - name: Model cache
         uses: actions/cache@v4
@@ -49,6 +49,12 @@ jobs:
       - name: Integration suite
         run: python3 tools/integration_test.py --fixtures fixtures --models app/src/main/assets/models --out build/integration
 
+      # D18: verify each engine in isolation before any pipeline exists. This
+      # is the gate that PROGRESS.md Step 1 refers to; it writes evidence to
+      # .halum/verify/ and .halum/ENGINE_VERIFICATION.md.
+      - name: Engine verification (D18)
+        run: python3 tools/engine_verify.py app/src/main/assets/models
+
       # Offline core checks: Lens fixture wire format (AC2) and the committed
       # response fixtures. No network, no model needed.
       - name: Lens fixtures are intact
@@ -60,11 +66,24 @@ jobs:
             --tests 'app.halum.core.LensProtocolTest' \
             --tests 'app.halum.core.BatchPlannerTest' \
             --tests 'app.halum.core.ResponseParserTest' \
-            --tests 'app.halum.core.ChatBridgeTest'
+            --tests 'app.halum.core.ChatBridgeTest' \
+            --tests 'app.halum.core.ChatBridgeVerificationTest'
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: integration-report
           path: build/integration
+          if-no-files-found: ignore
+
+      # D18 evidence: PNG masks, inpaint previews, decoded Lens blocks and the
+      # generated ENGINE_VERIFICATION.md. Kept even when a check fails so the
+      # failing frame can be inspected.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: engine-verification
+          path: |
+            .halum/verify
+            .halum/ENGINE_VERIFICATION.md
           if-no-files-found: ignore

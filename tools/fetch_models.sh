@@ -24,6 +24,14 @@ WORK="$CACHE_DIR/work"
 ULTRALYTICS_VERSION="${ULTRALYTICS_VERSION:-8.4.193}"
 
 BUBBLE_REPO="https://huggingface.co/juithealien/manga109-segmentation-bubble/resolve/main/best.pt"
+# D4: MI-GAN ships as an ONNX (~16 MB, MIT, Picsart ICCV 2023). Primary is the
+# community mirror the model card documents; the backup is a second HF mirror
+# used when the first is rate-limited in CI. An explicit MIGAN_ONNX_URL, if
+# set in the environment, overrides both.
+MIGAN_URLS=(
+  "https://huggingface.co/andraniksargsyan/migan/resolve/main/migan.onnx"
+  "https://huggingface.co/lxfater/inpaint-web/resolve/main/migan.onnx"
+)
 MIGAN_ONNX="${MIGAN_ONNX_URL:-}"
 
 # Sample manga pages: used for INT8 calibration and as the recall fixture
@@ -65,15 +73,34 @@ log "exporting bubble model (int8 preferred, fp16 fallback)"
 ls -l "$MODELS_DIR"/bubble*.tflite || die "bubble export produced no tflite"
 
 # ---------------------------------------------------------------- MI-GAN
+# D4: try the explicit URL first, then each documented mirror. A download that
+# succeeds is logged with its size; if every source fails, InpaintEngine falls
+# back to Telea/solid fill and AC4 is measured against Telea instead.
+migan_get() {
+  local url="$1" dest="$2"
+  curl -fL --retry 3 --retry-delay 5 -o "$dest" "$url" \
+    && [ -s "$dest" ] && [ "$(wc -c <"$dest")" -gt 1000000 ]
+}
+
+migan_onnx=""
 if [ -n "$MIGAN_ONNX" ]; then
   log "downloading MI-GAN from \$MIGAN_ONNX_URL"
-  curl -fL --retry 3 -o "$WORK/migan.onnx" "$MIGAN_ONNX" || log "MI-GAN download failed (continuing)"
-  if [ -s "$WORK/migan.onnx" ]; then
-    "$PY" "$ROOT/tools/export_migan.py" --onnx "$WORK/migan.onnx" --out "$MODELS_DIR" \
-      || log "MI-GAN export failed; InpaintEngine will use Telea/solid-fill only"
-  fi
+  if migan_get "$MIGAN_ONNX" "$WORK/migan.onnx"; then migan_onnx="$WORK/migan.onnx"; fi
+fi
+if [ -z "$migan_onnx" ]; then
+  for url in "${MIGAN_URLS[@]}"; do
+    log "downloading MI-GAN from $url"
+    if migan_get "$url" "$WORK/migan.onnx"; then migan_onnx="$WORK/migan.onnx"; break; fi
+    log "MI-GAN mirror failed: $url"
+  done
+fi
+
+if [ -n "$migan_onnx" ]; then
+  log "MIGAN_DOWNLOAD: url=$migan_onnx sizeMB=$(awk "BEGIN{printf \"%.1f\", $(wc -c <"$migan_onnx")/1e6}") pass=true"
+  "$PY" "$ROOT/tools/export_migan.py" --onnx "$migan_onnx" --out "$MODELS_DIR" \
+    || log "MIGAN_UNAVAILABLE: reason=export_failed fallback=telea"
 else
-  log "MIGAN_ONNX_URL not set; skipping inpaint model"
+  log "MIGAN_UNAVAILABLE: reason=download_failed fallback=telea"
 fi
 
 log "models now in $MODELS_DIR:"
