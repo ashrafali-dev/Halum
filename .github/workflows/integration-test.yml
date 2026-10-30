@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   python-checks:
-    name: fixtures, bubble recall, inpaint, bridge mock
+    name: replay Lens + bubble recall + core bridge
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -24,6 +24,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0'
 
       - name: Python deps
         run: |
@@ -45,8 +49,18 @@ jobs:
       - name: Integration suite
         run: python3 tools/integration_test.py --fixtures fixtures --models app/src/main/assets/models --out build/integration
 
-      # There is deliberately no Gradle step here: Gradle's JVM tests run in
-      # build.yml. This job exists so a red run names the failing check.
+      # Offline core checks: Lens fixture wire format (AC2) and the committed
+      # response fixtures. No network, no model needed.
+      - name: Lens fixtures are intact
+        run: python3 tools/lens_fixture.py --out fixtures --check
+
+      - name: JVM core replay (Lens decoder, planner, bridge)
+        run: |
+          ./gradlew --no-daemon testDebugUnitTest \
+            --tests 'app.halum.core.LensProtocolTest' \
+            --tests 'app.halum.core.BatchPlannerTest' \
+            --tests 'app.halum.core.ResponseParserTest' \
+            --tests 'app.halum.core.ChatBridgeTest'
 
       - uses: actions/upload-artifact@v4
         if: always()

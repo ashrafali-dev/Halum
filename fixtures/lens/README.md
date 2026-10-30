@@ -1,0 +1,31 @@
+# Lens fixtures
+
+`fixtures/lens_ja.bin` and `fixtures/lens_ko.bin` are **real protobuf bytes**
+for `lens.LensOverlayServerResponse`, produced with the official jspb bindings
+from [rxliuli/chrome-lens-ocr](https://github.com/rxliuli/chrome-lens-ocr) (MIT).
+They are not hand-rolled: the decoder test is checked against the reference
+implementation's own serializer, not against our encoder.
+
+`*.expected.json` is what `LensProtocol.decode` must return for each fixture
+(width/height are the page size used to convert normalised boxes to pixels).
+
+## Regenerating with the reference bindings
+
+```bash
+mkdir lensgen && cd lensgen
+npm init -y && npm i google-protobuf
+for f in $(gh api repos/rxliuli/chrome-lens-ocr/contents/src/utils/proto_generated -q '.[].name'); do
+  gh api repos/rxliuli/chrome-lens-ocr/contents/src/utils/proto_generated/$f -q '.content' | base64 -d > $f
+done
+# build LensOverlayServerResponse with ObjectsResponse.text.Text with
+# real fixtures as committed, and serializeBinary() to fixtures/lens_*.bin
+```
+
+## Switching to a live capture (D2)
+
+1. Use the capture build (Debug + `BuildConfig.HALUM_CAPTURE`).
+2. Open any manga page in the MAIN WebView, trigger capture, pull the dump
+   with `adb shell run-as app.halum cat files/lens_capture.bin > lens_ja.bin`.
+3. Replace the fixture + the matching `.expected.json`, then run
+   `./gradlew testDebugUnitTest --tests 'app.halum.core.LensProtocolTest'`.
+   No code changes are needed; the test only reads the files.
