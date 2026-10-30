@@ -64,17 +64,26 @@ object ResponseParser {
             val m = MARKER.find(line)
             if (m != null) {
                 sawMarker = true
-                val n = m.groupValues[1].toIntOrNull()
-                val text = m.groupValues[2].trim()
-                if (n != null && n in 1..blockCount) {
-                    val sb = byMarker.getOrPut(n) { StringBuilder() }
-                    if (text.isNotEmpty()) sb.appendText(text)
-                }
-            } else if (original.startsWith(" ") || original.startsWith("\t")) {
+                addMarked(byMarker, m, blockCount)
+                continue
+            }
+            if (original.startsWith(" ") || original.startsWith("\t")) {
                 byMarker.keys.maxOrNull()?.let { byMarker.getValue(it).appendText(line) }
             }
         }
         return if (sawMarker) byMarker else null
+    }
+
+    private fun addMarked(
+        byMarker: MutableMap<Int, StringBuilder>,
+        m: MatchResult,
+        blockCount: Int,
+    ) {
+        val n = m.groupValues[1].toIntOrNull() ?: return
+        if (n !in 1..blockCount) return
+        val text = m.groupValues[2].trim()
+        val sb = byMarker.getOrPut(n) { StringBuilder() }
+        if (text.isNotEmpty()) sb.appendText(text)
     }
 
     private fun StringBuilder.appendText(text: String) {
