@@ -79,7 +79,6 @@ android {
             isIncludeAndroidResources = true
             all {
                 it.systemProperty("halum.fixtures", rootProject.file("fixtures").absolutePath)
-                it.testLogging { events("failed", "passed"); showStandardStreams = true }
             }
         }
     }
