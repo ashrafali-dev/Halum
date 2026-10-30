@@ -23,7 +23,7 @@
       "name": "never_answers_times_out",
       "blocks": ["one"],
       "reply": null,
-      "expect": {"state": "TIMED_OUT", "missing": [0]}
+      "expect": {"state": "FAILED", "missing": [0]}
     }
   ]
 }

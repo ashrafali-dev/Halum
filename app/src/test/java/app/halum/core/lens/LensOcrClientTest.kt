@@ -97,8 +97,8 @@ class LensOcrClientTest {
         limiter.acquire()
         now += RateLimiter.WINDOW_MS
 
-        limiter.acquire() // the oldest call has aged out
-        assertEquals(2, limiter.used())
+        limiter.acquire() // both t=0 calls are exactly one window old
+        assertEquals(1, limiter.used())
     }
 
     @Test
