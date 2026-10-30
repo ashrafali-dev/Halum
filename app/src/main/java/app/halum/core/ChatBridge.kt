@@ -182,16 +182,16 @@ class ChatBridge(
     /** Returns null on timeout/cancel; the caller decides what to retry. */
     private fun sendAwait(prompt: String): String? {
         state = State.SENDING
+        // A fresh conversation starts with no assistant message, so any
+        // non-blank reply is the answer to this send. Comparing against the
+        // previous reply would hang on a chatbot that repeats itself, which is
+        // exactly what a refusal looks like.
         page.newConversation()
-        val previous = page.lastReply()
         page.inject(prompt)
         state = State.AWAITING_REPLY
         val ok =
             await(
-                {
-                    val reply = page.lastReply()
-                    reply != null && reply != previous && reply.isNotBlank()
-                },
+                { page.lastReply()?.isNotBlank() == true },
                 REPLY_TIMEOUT_MS,
             )
         if (!ok) {
