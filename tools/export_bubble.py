@@ -56,29 +56,42 @@ def onnx_to_tflite(onnx_path: str, work_dir: str) -> str:
     if not os.path.isdir(venv):
         sh([sys.executable, "-m", "venv", venv])
         sh([os.path.join(venv, "bin", "pip"), "install", "--quiet", "--upgrade", "pip"])
-        sh([
-            os.path.join(venv, "bin", "pip"), "install", "--quiet",
-            f"onnx2tf=={ONNX2TF_VERSION}",
-        ])
+    # Always reconcile: CI caches venv_tf, so a cached env built before
+    # [tensorflow] was added would otherwise lack TF and fail the backend.
+    # pip is a no-op when the requirement is already satisfied.
+    # [tensorflow] pulls the TF wheel the tf_converter backend needs.
+    sh([
+        os.path.join(venv, "bin", "pip"), "install", "--quiet",
+        f"onnx2tf[tensorflow]=={ONNX2TF_VERSION}",
+    ])
     tb_dir = os.path.join(work_dir, "tb")
     shutil.rmtree(tb_dir, ignore_errors=True)
+    # Not the default flatbuffer_direct backend. It emits a PAD node whose
+    # paddings tensor has the wrong rank, which fails at Interpreter creation
+    # on the device: "pad.cc:123 SizeOfDimension(op_context->paddings, 0) !=
+    # op_context->dims (4 != 1). Node number 0 (PAD) failed to prepare."
+    # onnx2tf's docs list --tflite_backend tf_converter as the remedy for a
+    # node the direct path cannot lower correctly.
     sh([
         os.path.join(venv, "bin", "onnx2tf"),
         "-i", onnx_path, "-o", tb_dir, "-b", "1",
+        "--tflite_backend", "tf_converter",
         "--non_verbose",
     ])
-    # flatbuffer_direct writes <model>_float32.tflite and <model>_float16.tflite.
-    candidates = sorted(
+    # Names differ by backend (flatbuffer_direct writes <model>_float32.tflite
+    # / <model>_float16.tflite; tf_converter writes <model>_float32.tflite or
+    # a bare <model>.tflite). Prefer float32, else take the only one, and
+    # never silently pick float16: it does not prepare on the device CPU.
+    all_tflite = sorted(
         os.path.join(tb_dir, f) for f in os.listdir(tb_dir)
         if f.endswith(".tflite")
     )
-    if not candidates:
+    if not all_tflite:
         raise SystemExit("onnx2tf produced no tflite")
-    # float32, not float16. The float16 flatbuffer_direct output fails to
-    # prepare on the device CPU: "conv.cc:361 input_type == kTfLiteFloat32 ||
-    # ... was not true. Node number 1 (CONV_2D) failed to prepare." float32 is
-    # ~11 MB instead of 5.9 MB but it is the variant known to run.
-    chosen = next((c for c in candidates if "float32" in c), candidates[0])
+    float32 = [c for c in all_tflite if "float16" not in c]
+    if not float32:
+        raise SystemExit(f"only float16 tflite was produced: {all_tflite}")
+    chosen = next((c for c in float32 if "float32" in c), float32[0])
     print(f"[export_bubble] tflite {os.path.getsize(chosen) / 1e6:.2f} MB ({os.path.basename(chosen)})")
     return chosen
 

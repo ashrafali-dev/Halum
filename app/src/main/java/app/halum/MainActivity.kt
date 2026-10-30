@@ -219,7 +219,13 @@ class MainActivity : AppCompatActivity() {
                         runCatching {
                             val p = pipeline ?: buildPipeline().also { pipeline = it }
                             p.process(bitmap)
-                        }.onFailure { Log.e(TAG, "PIPE_FAILED", it) }
+                        }.onFailure {
+                            // A detector whose Interpreter failed to allocate is
+                            // unusable; keeping it made every later run fail
+                            // with "Target Tensor hasn't been allocated".
+                            pipeline = null
+                            Log.e(TAG, "PIPE_FAILED", it)
+                        }
                     bitmap.recycle()
                     val failure = outcome.exceptionOrNull()
                     finishRun {
