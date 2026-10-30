@@ -44,7 +44,10 @@ object ResponseParser {
             if (text.isEmpty()) continue
             byMarker
                 .getOrPut(n) { StringBuilder() }
-                .let { if (it.isNotEmpty()) it.append(' '); it.append(text) }
+                .let {
+                    if (it.isNotEmpty()) it.append(' ')
+                    it.append(text)
+                }
         }
         if (sawMarker) {
             val values = (1..blockCount).map { byMarker[it]?.toString() }

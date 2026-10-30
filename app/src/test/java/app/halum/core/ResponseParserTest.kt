@@ -31,10 +31,11 @@ class ResponseParserTest {
 
     @Test
     fun `missing blocks are reported, not invented`() {
-        val r = ResponseParser.parse(
-            "Sure! Here you go:\n[1] one\n[3] three\nHope that helps.",
-            3,
-        )
+        val r =
+            ResponseParser.parse(
+                "Sure! Here you go:\n[1] one\n[3] three\nHope that helps.",
+                3,
+            )
         assertEquals(listOf("one", null, "three"), r.translations)
         assertEquals(listOf(1), r.missing)
         assertFalse(r.complete)
