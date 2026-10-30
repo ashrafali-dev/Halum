@@ -43,16 +43,20 @@ class AndroidPanelPipeline(
                         val bitmap =
                             BitmapFactory.decodeByteArray(panel.image, 0, panel.image.size)
                                 ?: return emptyList()
-                        val (detections, box) = det.detect(bitmap)
-                        val bubbles = det.masks(detections, box, bitmap)
-                        bitmap.recycle()
-                        Log.i(TAG, "BUBBLES: ${bubbles.size} scored ${detections.size}")
-                        return bubbles.map {
-                            PanelPipeline.DetectedBubble(
-                                app.halum.core.BubbleClassifier
-                                    .Box(it.x1, it.y1, it.x2, it.y2),
-                                it.mask,
-                            )
+                        return try {
+                            val (detections, _) = det.detect(bitmap)
+                            Log.i(TAG, "BUBBLES: ${detections.size} scored")
+                            // PanelPipeline only reads the boxes; a page-sized
+                            // mask per bubble (2.6 MB at 1080x2400) is exactly
+                            // the allocation that OOMs a 192 MB heap.
+                            detections.map { d ->
+                                PanelPipeline.DetectedBubble(
+                                    app.halum.core.BubbleClassifier.Box(d.x1, d.y1, d.x2, d.y2),
+                                    ByteArray(0),
+                                )
+                            }
+                        } finally {
+                            bitmap.recycle()
                         }
                     }
                 },

@@ -1,6 +1,8 @@
 package app.halum
 
 import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -26,6 +28,7 @@ import app.halum.engine.LensPort
 import app.halum.engine.WebViewChatPage
 import app.halum.model.Models
 import app.halum.overlay.OverlayView
+import app.halum.util.HalumLog
 import app.halum.util.Log
 import java.util.concurrent.Executors
 
@@ -48,6 +51,12 @@ class MainActivity : AppCompatActivity() {
     }
     private var pipeline: AndroidPanelPipeline? = null
     private var lastOverlayScrollY = 0
+
+    /** One pipeline run at a time; a second tap is ignored, not queued. */
+    private val busy = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** True between Start and Stop; scrolling triggers work only in this state. */
+    private var running = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -107,12 +116,18 @@ class MainActivity : AppCompatActivity() {
     private fun wirePipeline() {
         binding.btnTranslate.setOnClickListener { translateVisiblePanel() }
         binding.btnSettings.setOnClickListener { openSettings() }
+        binding.btnCopyLog.setOnClickListener { copyLog() }
+        binding.btnStartStop.setOnClickListener { toggleRunning() }
 
         // D9: user scroll dismisses the overlay; a pipeline transition must not.
         binding.mainWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
             if (scrollY != lastOverlayScrollY) {
                 lastOverlayScrollY = scrollY
                 binding.overlay.clear(OverlayView.ClearReason.SCROLL)
+                // Realtime follows the viewport: a scroll makes the old panel
+                // stale, so translate what is visible now. Scan does not — it
+                // walks the page on an explicit Start.
+                if (running && currentMode == Mode.REALTIME) translateVisiblePanel()
             }
         }
         // Q2 level 3: long-press a translation to edit it. The overlay is not
@@ -152,51 +167,110 @@ class MainActivity : AppCompatActivity() {
         return AndroidPanelPipeline(lens, detector, bridge)
     }
 
-    /** Captures the visible MAIN panel with PixelCopy and runs the pipeline. */
+    /**
+     * Captures the visible MAIN panel and runs the pipeline.
+     *
+     * Building the pipeline copies a 5.86 MB model out of assets, hashes it,
+     * mmaps it and instantiates a TFLite interpreter — on a 192 MB heap that
+     * is an OOM if it happens on the UI thread (and it did: the app died on
+     * the first tap, before OCR). Building and running both happen on [worker].
+     */
     private fun translateVisiblePanel() {
+        if (!busy.compareAndSet(false, true)) return
         setProgress(0, getString(R.string.progress_working))
-        binding.mainWebView.post {
-            captureView(binding.mainWebView) { bitmap ->
-                if (bitmap == null) {
-                    setProgress(0, getString(R.string.error_capture_failed))
-                    return@captureView
-                }
-                val p = pipeline ?: buildPipeline().also { pipeline = it }
+        captureOnUiThread(
+            onDone = { bitmap ->
+                setProgress(0, getString(R.string.progress_ocr))
                 worker.execute {
-                    val outcome = runCatching { p.process(bitmap) }.getOrNull()
+                    if (bitmap == null) {
+                        finishRun { setProgress(0, getString(R.string.error_capture_failed)) }
+                        return@execute
+                    }
+                    // From here on the bitmap is owned by the worker.
+                    val outcome =
+                        runCatching {
+                            val p = pipeline ?: buildPipeline().also { pipeline = it }
+                            p.process(bitmap)
+                        }.onFailure { Log.e(TAG, "PIPE_FAILED", it) }
                     bitmap.recycle()
-                    runOnUiThread { deliver(outcome) }
+                    finishRun { deliver(outcome.getOrNull()) }
                 }
+            },
+            onFailed = { finishRun { setProgress(0, getString(R.string.error_capture_failed)) } },
+        )
+    }
+
+    /**
+     * The WebView can only be drawn on the UI thread; PixelCopy-free `draw`
+     * is fine there, it is the model work that must leave it.
+     */
+    private fun captureOnUiThread(
+        onDone: (Bitmap?) -> Unit,
+        onFailed: () -> Unit,
+    ) {
+        binding.mainWebView.post {
+            if (binding.mainWebView.width <= 0 || binding.mainWebView.height <= 0) {
+                onFailed()
+                return@post
+            }
+            onDone(captureView(binding.mainWebView))
+        }
+    }
+
+    private fun finishRun(then: () -> Unit) {
+        runOnUiThread {
+            try {
+                then()
+            } finally {
+                busy.set(false)
             }
         }
     }
 
     private fun deliver(outcome: AndroidPanelPipeline.PanelOutcome?) {
         if (outcome == null) {
-            setProgress(0, getString(R.string.error_lens_unavailable))
+            setProgress(0, getString(R.string.error_ocr_failed))
             return
         }
-        val placements = outcome.placements.map { OverlayView.Placement(it.box, it.text, it.isSmall) }
+        // Boxes are in captured-bitmap pixels; the overlay draws in view pixels.
+        val sx = if (outcome.width > 0) binding.mainWebView.width.toFloat() / outcome.width else 1f
+        val sy = if (outcome.height > 0) binding.mainWebView.height.toFloat() / outcome.height else 1f
+        val placements =
+            outcome.placements.map {
+                OverlayView.Placement(
+                    app.halum.core.BubbleClassifier.Box(
+                        it.box.x1 * sx,
+                        it.box.y1 * sy,
+                        it.box.x2 * sx,
+                        it.box.y2 * sy,
+                    ),
+                    it.text,
+                    it.isSmall,
+                )
+            }
         binding.overlay.show(placements, binding.mainWebView.scrollY)
         setProgress(100, getString(R.string.progress_panel, outcome.placements.size, outcome.bubbles))
-        Log.i(TAG, "OVERLAY_PLACED: count=${placements.size}")
+        Log.i(TAG, "OVERLAY_PLACED: count=${placements.size} scale=${"%.2f".format(sx)}")
     }
 
-    /** D20/PixelCopy-free: draw the WebView into a bitmap off the UI thread. */
-    private fun captureView(
-        view: View,
-        onDone: (Bitmap?) -> Unit,
-    ) {
+    /**
+     * Draws the WebView into a bitmap, downsampled so the long edge is at most
+     * [MAX_CAPTURE_EDGE]. Lens resizes to 640 anyway, and a full ARGB_8888
+     * screen grab (1080x2400 = 10.4 MB) plus per-bubble page-sized masks is
+     * what pushes this app over a 192 MB heap.
+     */
+    private fun captureView(view: View): Bitmap {
         val w = view.width
         val h = view.height
-        if (w <= 0 || h <= 0) {
-            onDone(null)
-            return
-        }
-        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val longEdge = maxOf(w, h)
+        val scale = if (longEdge > MAX_CAPTURE_EDGE) MAX_CAPTURE_EDGE.toFloat() / longEdge else 1f
+        val outW = (w * scale).toInt().coerceAtLeast(1)
+        val outH = (h * scale).toInt().coerceAtLeast(1)
+        val bmp = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bmp)
+        canvas.scale(scale, scale)
         view.draw(canvas)
-        onDone(bmp)
+        return bmp
     }
 
     private fun openSettings() {
@@ -217,6 +291,20 @@ class MainActivity : AppCompatActivity() {
                 prefs.resetGlobalPrompt()
             }.setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    /** Copies the in-app ring buffer so the user can paste it back to us. */
+    private fun copyLog() {
+        val text = HalumLog.dump()
+        val lines = text.lines().count { it.isNotBlank() }
+        if (lines == 0) {
+            Toast.makeText(this, R.string.settings_log_empty, Toast.LENGTH_SHORT).show()
+            return
+        }
+        getSystemService(ClipboardManager::class.java)
+            .setPrimaryClip(ClipData.newPlainText(LOG_CLIP_LABEL, text))
+        Log.i(TAG, "LOG_COPIED: lines=$lines")
+        Toast.makeText(this, getString(R.string.settings_log_copied, lines), Toast.LENGTH_SHORT).show()
     }
 
     private fun openBubbleEditor() {
@@ -323,6 +411,21 @@ class MainActivity : AppCompatActivity() {
         currentMode = mode
     }
 
+    /**
+     * Start/Stop. Realtime translates the visible panel immediately and again
+     * whenever the viewport moves (latest-wins via [busy]); Scan translates
+     * the visible panel once on Start — the chapter walk needs the panel list,
+     * which the page-level runner supplies.
+     */
+    private fun toggleRunning() {
+        running = !running
+        binding.btnStartStop.text =
+            getString(if (running) R.string.action_stop else R.string.action_start)
+        binding.overlay.clear(OverlayView.ClearReason.DISMISS)
+        Log.i(TAG, "RUN_STATE: running=$running mode=$currentMode")
+        if (running) translateVisiblePanel()
+    }
+
     fun setProgress(
         percent: Int,
         label: String,
@@ -383,5 +486,9 @@ class MainActivity : AppCompatActivity() {
         private const val CHAT_HOME = "https://chatgpt.com/"
         private const val MAIN_UA_SUFFIX = "Halum/0.1"
         private const val CHAT_UA_SUFFIX = "Halum/0.1"
+        private const val LOG_CLIP_LABEL = "Halum log"
+
+        /** Long-edge cap for a capture; Lens resizes to 640 regardless. */
+        private const val MAX_CAPTURE_EDGE = 1280
     }
 }

@@ -14,6 +14,9 @@ object Log {
         )
     }
 
+    /** The logcat sink, so a recorder can chain to it instead of replacing it. */
+    val androidSink: Sink get() = AndroidSink
+
     @Volatile
     var sink: Sink = AndroidSink
 

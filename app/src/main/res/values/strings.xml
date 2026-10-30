@@ -18,10 +18,17 @@
     <string name="settings_prompt_label">Translation prompt (use {BLOCKS} for the batch)</string>
     <string name="settings_prompt_reset">Reset to default</string>
     <string name="settings_adblock">Ad blocker</string>
+    <string name="settings_copy_log">Copy log</string>
+    <string name="settings_log_copied">Log copied (%1$d lines)</string>
+    <string name="settings_log_empty">Log is empty</string>
     <string name="scan_custom_prompt">Custom prompt for this chapter</string>
     <string name="scan_advanced">Advanced</string>
     <string name="scan_remember">Remember for this site</string>
     <string name="bridge_not_recognized">Chat UI not recognized — try a different URL or paste text manually.</string>
     <string name="error_lens_unavailable">OCR unavailable</string>
     <string name="error_capture_failed">Could not capture the page</string>
+    <string name="error_ocr_failed">OCR failed — check the log</string>
+    <string name="progress_ocr">Reading the panel…</string>
+    <string name="action_start">Start</string>
+    <string name="action_stop">Stop</string>
 </resources>
