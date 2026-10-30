@@ -32,8 +32,8 @@ class PanelPipelineTest {
     private fun pipeline(
         ocrBlocks: List<OcrBlock>,
         detected: List<PanelPipeline.DetectedBubble>,
-        translate: (List<String>) -> List<String?>,
         now: () -> Long = { 0L },
+        translate: (List<String>) -> List<String?>,
     ) = PanelPipeline(
         lens =
             object : PanelPipeline.LensClient {
@@ -113,11 +113,16 @@ class PanelPipelineTest {
         val ocr = listOf(ocr("a", 10f, 10f, 20f, 20f))
         val b = listOf(bubble(0f, 0f, 100f, 80f))
         val p =
-            pipeline(ocr, b, { listOf("ক") }) {
-                val v = t
-                t += 250
-                v
-            }
+            pipeline(
+                ocr,
+                b,
+                now = {
+                    val v = t
+                    t += 250
+                    v
+                },
+                translate = { listOf("ক") },
+            )
         val result = p.process(panel)
         assertEquals(250L, result.totalMs)
     }
