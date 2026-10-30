@@ -4,8 +4,6 @@ Format: `[OPEN|FIXING|FIXED] short title` — symptom, root cause, fix, run id.
 
 ## Fixed
 
-_(none yet)_
-
 ### [FIXED] integration-test red: `tools/integration_test.py` missing
 - Run 40988332235: `python3: can't open file tools/integration_test.py`.
   The workflow referenced a file nobody wrote.
@@ -69,6 +67,27 @@ _(none yet)_
 - Fix: verify on fixture in Phase 2; add `InpaintEngineTest`
   that asserts the masked pixel mean changes by > 5 and the output stays
   inside the bubble (D14.4).
+
+### [FIXED] lint red: ktlint, then detekt once ktlint passed
+- Runs 40985772775 / 41008957412: 38 ktlint `function-signature` etc.; after
+  `format.yml` cleared those, detekt's 6 findings surfaced — it had never run
+  because the ktlint step failed first.
+- Fix (session 3): refactored `ChatBridge.translate` into `translateBatch` +
+  `retryIndividually`, `Proto.skip`/`readLengthDelimited` onto one
+  `advance()` bounds check, split `decodeGeometry`/`decodeParagraphText`,
+  lifted `ResponseParser.collectByMarker` out of `parse`.
+- Verified: lint green on `d9a03b0`.
+
+### [FIXED] bridge painted refusals and stalled on repeated replies
+- A refusal passed `ResponseParser`'s positional mode (1 block, 1 line), so
+  `translate` returned DONE with the apology as the translation.
+- A partial `[N]` reply resent the whole batch `MAX_RETRIES` times, then
+  timed out instead of falling back per block.
+- `sendAwait` ignored a reply identical to the previous one, so a chatbot
+  that repeats its refusal looked silent until the 120 s timeout.
+- Fix: refusal check at batch level, markers keep what arrived and only
+  missing blocks are re-sent, `newConversation()` makes any non-blank reply
+  count as the answer. Verified: integration green on `41008957375`.
 
 ### [FIXING] lint red: ktlint style in MainActivity/HalumApp/LogSinkTest
 - Run 40985772775: 38 `function-signature`, 5 `no-empty-first-line-in-class-body`,

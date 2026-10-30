@@ -3,6 +3,30 @@
 Session-by-session log. Newest first. Each entry: date, what changed,
 what CI said.
 
+## 2026-10-30 06:2x UTC — session 3
+
+All five workflows green on `d9a03b0`.
+
+- **Lens fixtures were broken and nobody knew.** `fixtures/lens_*.bin`
+  had failed `lens_fixture.py --check` on every CI run since they landed
+  (wire type 3/6/7, truncated varint). The encoder nested the word
+  message twice, and the line's field 2 is geometry — putting text there
+  desynced the reader. Fixed `encode_page`/`encode_line`, implemented the
+  documented-but-missing `--write`, regenerated both `.bin` files from the
+  unchanged `.expected.json`.
+- **AC2 is not independent yet**: fixtures and decoder came from the same
+  proto reading, so a shared field-number mistake would agree with itself.
+  README + test doc comment now say so; logged as an open BUG.
+- **ChatBridge**: a refusal is now caught at the batch level (it was
+  parsed as positional prose and painted onto the page); a partial marker
+  reply keeps what arrived and re-sends only the missing blocks; a
+  repeated reply counts as a reply instead of waiting out the timeout.
+- **detekt had never run** — ktlint failed first on main. Clearing ktlint
+  surfaced 6 findings; refactored `translate`, `Proto.skip`,
+  `decodeGeometry`, `decodeParagraphText`, `ResponseParser.parse`.
+- Test premises fixed, not code: the FakePage reveal is one poll after
+  `inject()`, and a one-block send is renumbered `[1]`.
+
 ## 2026-10-30 07:5x UTC — session 2
 
 - Read all 6 memory files; resumed at "prove build/lint green".
