@@ -1,6 +1,7 @@
 package app.halum.core
 
 import app.halum.core.Proto.Reader
+import app.halum.core.Proto.Writer
 
 /** One OCR line. All values are already in page pixels (D5). */
 data class OcrBlock(
@@ -46,62 +47,48 @@ object LensProtocol {
         val jpeg: ByteArray,
     ) {
         fun encode(): ByteArray {
-            val requestId =
-                Proto
-                    .Writer()
-                    .writeVarint(1, uuid)
-                    .writeVarint(2, sequenceId.toLong())
-                    .writeVarint(3, imageSequenceId.toLong())
-                    .toByteArray()
+            val requestId = Proto.Writer()
+                .writeVarint(1, uuid)
+                .writeVarint(2, sequenceId.toLong())
+                .writeVarint(3, imageSequenceId.toLong())
+                .toByteArray()
 
-            val locale =
-                Proto
-                    .Writer()
-                    .writeString(1, targetLanguage)
-                    .writeString(2, region)
-                    .writeString(3, timeZone)
-                    .toByteArray()
+            val locale = Proto.Writer()
+                .writeString(1, targetLanguage)
+                .writeString(2, region)
+                .writeString(3, timeZone)
+                .toByteArray()
 
             val filter = Proto.Writer().writeVarint(1, FILTER_AUTO).toByteArray()
             val filters = Proto.Writer().writeMessage(1, filter).toByteArray()
 
-            val clientContext =
-                Proto
-                    .Writer()
-                    .writeVarint(1, PLATFORM_WEB)
-                    .writeVarint(2, SURFACE_CHROMIUM)
-                    .writeMessage(4, locale)
-                    .writeMessage(17, filters)
-                    .toByteArray()
+            val clientContext = Proto.Writer()
+                .writeVarint(1, PLATFORM_WEB)
+                .writeVarint(2, SURFACE_CHROMIUM)
+                .writeMessage(4, locale)
+                .writeMessage(17, filters)
+                .toByteArray()
 
-            val requestContext =
-                Proto
-                    .Writer()
-                    .writeMessage(3, requestId)
-                    .writeMessage(4, clientContext)
-                    .toByteArray()
+            val requestContext = Proto.Writer()
+                .writeMessage(3, requestId)
+                .writeMessage(4, clientContext)
+                .toByteArray()
 
-            val metadata =
-                Proto
-                    .Writer()
-                    .writeVarint(1, width.toLong())
-                    .writeVarint(2, height.toLong())
-                    .toByteArray()
+            val metadata = Proto.Writer()
+                .writeVarint(1, width.toLong())
+                .writeVarint(2, height.toLong())
+                .toByteArray()
 
             val payload = Proto.Writer().writeBytes(1, jpeg).toByteArray()
-            val imageData =
-                Proto
-                    .Writer()
-                    .writeMessage(1, payload)
-                    .writeMessage(3, metadata)
-                    .toByteArray()
+            val imageData = Proto.Writer()
+                .writeMessage(1, payload)
+                .writeMessage(3, metadata)
+                .toByteArray()
 
-            val objects =
-                Proto
-                    .Writer()
-                    .writeMessage(1, requestContext)
-                    .writeMessage(3, imageData)
-                    .toByteArray()
+            val objects = Proto.Writer()
+                .writeMessage(1, requestContext)
+                .writeMessage(3, imageData)
+                .toByteArray()
 
             return Proto.Writer().writeMessage(1, objects).toByteArray()
         }

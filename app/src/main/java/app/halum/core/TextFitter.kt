@@ -60,7 +60,7 @@ object TextFitter {
             return Fitted(lines.joinToString("\n"), MIN_SP, lines, false)
         }
         val kept = lines.take(maxLines).toMutableList()
-        kept[kept.lastIndex] = ellipsise(kept.last(), boxWidthPx, MIN_SP, measure)
+        kept[kept.lastIndex] = ellipsise(kept.last(), boxWidthPx, MIN_SP, measure).text
         return Fitted(kept.joinToString("\n"), MIN_SP, kept, true)
     }
 
