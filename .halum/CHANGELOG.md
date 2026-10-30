@@ -30,6 +30,8 @@ what CI said.
   (36 boxes) so AC3 runs at recall >= 0.80, IoU >= 0.50.
 - JVM `--tests 'app.halum.integration.*'` step removed (package does not
   exist yet; it would fail every run). Put it back when Phase 1 lands.
+- **integration-test green** (40990108077): AC3 recall 1.000 over 31
+  reference bubbles, all 4 pages at 1.00.
 - NOT done: MI-GAN (no `MIGAN_ONNX_URL`), Lens fixtures, Kotlin core.
 
 ## 2026-10-30 07:10 UTC — session 1

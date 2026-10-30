@@ -16,7 +16,7 @@
 | App module + MainActivity stub (two WebViews, splitter) | committed, compiles in CI |
 | CI `build.yml` | **green** (40988332274) — APK 58.1 MB, bubble.tflite 5.86 MB |
 | CI `lint.yml` + `format.yml` | **green** (format reflowed main in f6ec1ab) |
-| CI `integration-test.yml` | harness works; red only on AC3 assertion |
+| CI `integration-test.yml` | **green** (40990108077) — AC3 recall 1.000 over 31 refs |
 | CI `memory-test.yml` | never observed to run/pass |
 | Bubble export (`tools/export_bubble.py`) | **works**: onnx2tf 2.6.9 → float16 |
 | Bubble reference detector + AC3 boxes (`fixtures/pages.json`) | 36 boxes, 4 pages |
@@ -54,9 +54,7 @@
 
 ## What is next (exact order)
 
-1. Confirm integration-test is green now that `expected` boxes exist
-   (run after 2026-10-30 08:10). Then fix anything red.
-2. **Phase 1 core** (`app/src/main/java/app/halum/core/`, pure JVM, JUnit
+1. **Phase 1 core** (`app/src/main/java/app/halum/core/`, pure JVM, JUnit
    tests in `app/src/test/.../core/`):
    a. `lens/LensProtocol.kt` — decoder over `fixtures/lens_*.bin`, asserts
       text/coords (AC2), plus a parser test over a recorded JSON sample.
@@ -65,9 +63,9 @@
    c. `bridge/ChatBridge.kt` state machine with a fake WebView (AC5).
    Re-add `--tests 'app.halum.integration.*'` to integration-test.yml only
    when such a package exists.
-3. Records Lens fixtures: `workflow_dispatch` job hits Lens, uploads
+2. Record Lens fixtures: `workflow_dispatch` job hits Lens, uploads
    `lens_ko.bin`/`lens_ja.bin` as artifact, commit them to `fixtures/`.
-4. Phase 2 engines (Lens client, BubbleDetector TFLite, InpaintEngine,
+3. Phase 2 engines (Lens client, BubbleDetector TFLite, InpaintEngine,
    Overlay), then UI wiring, then `lens-canary.yml`, then `v0.1.0`.
 
 ## Open questions for the user (blocking, ask before spending CI time)
