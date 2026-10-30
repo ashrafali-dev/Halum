@@ -34,9 +34,12 @@ class TextFitterTest {
         assertTrue(f.lines.size <= 2)
         // Every kept line fits horizontally and the cut is signalled.
         f.lines.forEach { assertTrue("'$it' overflows", at10.width(it, 8f) <= 50f) }
-        assertTrue("last line '${
-        f.lines.last()
-        }' must end with an ellipsis", f.lines.last().endsWith("…"))
+        assertTrue(
+            "last line '${
+                f.lines.last()
+            }' must end with an ellipsis",
+            f.lines.last().endsWith("…"),
+        )
     }
 
     @Test
