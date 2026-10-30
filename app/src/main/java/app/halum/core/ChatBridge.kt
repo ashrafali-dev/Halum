@@ -108,6 +108,11 @@ class ChatBridge(
                     if (cancelled) return finish(State.CANCELLED, results.asList(), attempts)
                     break // timeout: do not hammer a silent chatbot
                 }
+                if (isRefusal(reply)) {
+                    // Resending the batch to a chatbot that refuses just gets
+                    // the same refusal; go straight to the per-block fallback.
+                    break
+                }
                 val parsed = ResponseParser.parse(reply, batchTexts.size)
                 if (parsed.complete) {
                     batchOutcome = parsed.translations
@@ -121,11 +126,14 @@ class ChatBridge(
                     break
                 }
             }
-            // D6: a batch that answered nothing (no markers at all, or a
-            // timeout) is retried one block per send.
+            // D6: a batch that answered nothing (no markers at all, a refusal,
+            // or a timeout) is retried one block per send. When markers arrived
+            // but some blocks were missing, only those are re-sent.
             if (batchOutcome == null) {
-                val fallback = retryIndividually(batchTexts)
-                batchOutcome = fallback
+                batchOutcome = retryIndividually(batchTexts, null)
+                attempts += retryAttempts
+            } else if (batchOutcome.any { it == null }) {
+                batchOutcome = retryIndividually(batchTexts, batchOutcome)
                 attempts += retryAttempts
             }
             batch.indices.forEachIndexed { k, globalIndex -> results[globalIndex] = batchOutcome[k] }
@@ -142,14 +150,23 @@ class ChatBridge(
     /** Sends counted by [retryIndividually], included in the outcome's attempts. */
     private var retryAttempts = 0
 
-    private fun retryIndividually(batchTexts: List<String>): List<String?> {
+    /**
+     * Sends blocks one per message. [seed] carries translations already
+     * obtained from the batch reply; only the still-missing ones are sent.
+     */
+    private fun retryIndividually(
+        batchTexts: List<String>,
+        seed: List<String?>?,
+    ): List<String?> {
         retryAttempts = 0
-        val out = arrayOfNulls<String>(batchTexts.size)
+        val out = seed?.toMutableList() ?: MutableList<String?>(batchTexts.size) { null }
         for (i in batchTexts.indices) {
-            repeat(MAX_RETRIES) {
-                if (cancelled || out[i] != null) return@repeat
+            if (out[i] != null) continue
+            for (tryNo in 0 until MAX_RETRIES) {
+                if (cancelled || out[i] != null) break
                 retryAttempts++
-                val reply = sendAwait(PromptBuilder.build(listOf(batchTexts[i]))) ?: return@repeat
+                val reply = sendAwait(PromptBuilder.build(listOf(batchTexts[i]))) ?: break
+                if (isRefusal(reply)) continue
                 // A one-block reply may come back as bare prose. ResponseParser
                 // would accept any single line positionally, including a chat
                 // refusal, so it is only used when it actually found a marker.
@@ -162,7 +179,12 @@ class ChatBridge(
                     }
             }
         }
-        return out.asList()
+        return out
+    }
+
+    private fun isRefusal(reply: String): Boolean {
+        val lower = reply.lowercase()
+        return REFUSAL_MARKERS.any { lower.contains(it) }
     }
 
     /**
@@ -174,8 +196,7 @@ class ChatBridge(
         val text = reply.trim()
         if (text.isEmpty() || text.length > MAX_BARE_CHARS) return null
         // Refusals must not be painted on the artwork (see REFUSAL_MARKERS).
-        val lower = text.lowercase()
-        if (REFUSAL_MARKERS.any { lower.contains(it) }) return null
+        if (isRefusal(text)) return null
         return text
     }
 
