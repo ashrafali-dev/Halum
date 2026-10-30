@@ -49,7 +49,8 @@ class AndroidPanelPipeline(
                         Log.i(TAG, "BUBBLES: ${bubbles.size} scored ${detections.size}")
                         return bubbles.map {
                             PanelPipeline.DetectedBubble(
-                                app.halum.core.BubbleClassifier.Box(it.x1, it.y1, it.x2, it.y2),
+                                app.halum.core.BubbleClassifier
+                                    .Box(it.x1, it.y1, it.x2, it.y2),
                                 it.mask,
                             )
                         }
@@ -82,8 +83,11 @@ class AndroidPanelPipeline(
             pipeline.process(
                 PanelPipeline.CapturedPanel(bitmap.width, bitmap.height, bytes),
             )
-        Log.i(TAG, "PIPE_DONE: panel=${bitmap.width}x${bitmap.height} bubbles=${result.bubbles} " +
-            "placed=${result.placements.size} totalMs=${result.totalMs}")
+        Log.i(
+            TAG,
+            "PIPE_DONE: panel=${bitmap.width}x${bitmap.height} bubbles=${result.bubbles} " +
+                "placed=${result.placements.size} totalMs=${result.totalMs}",
+        )
         return PanelOutcome(
             result.placements,
             result.bubbles,
@@ -103,6 +107,7 @@ class AndroidPanelPipeline(
 
     private companion object {
         const val TAG = "PanelPipeline"
+
         // Lens re-encodes anyway; 90 keeps strokes crisp without bloat.
         const val JPEG_QUALITY = 90
     }

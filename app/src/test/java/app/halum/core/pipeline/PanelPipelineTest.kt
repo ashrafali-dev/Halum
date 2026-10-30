@@ -35,15 +35,18 @@ class PanelPipelineTest {
         translate: (List<String>) -> List<String?>,
         now: () -> Long = { 0L },
     ) = PanelPipeline(
-        lens = object : PanelPipeline.LensClient {
-            override fun recognize(panel: PanelPipeline.CapturedPanel) = ocrBlocks
-        },
-        bubbles = object : PanelPipeline.BubbleDetector {
-            override fun detect(panel: PanelPipeline.CapturedPanel) = detected
-        },
-        translator = object : PanelPipeline.Translator {
-            override fun translate(blocks: List<String>) = translate(blocks)
-        },
+        lens =
+            object : PanelPipeline.LensClient {
+                override fun recognize(panel: PanelPipeline.CapturedPanel) = ocrBlocks
+            },
+        bubbles =
+            object : PanelPipeline.BubbleDetector {
+                override fun detect(panel: PanelPipeline.CapturedPanel) = detected
+            },
+        translator =
+            object : PanelPipeline.Translator {
+                override fun translate(blocks: List<String>) = translate(blocks)
+            },
         clock = now,
     )
 

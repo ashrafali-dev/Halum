@@ -86,7 +86,8 @@ class PanelPipeline(
         // order. A bubble with no line has nothing to translate.
         val perBubbleText =
             grouped.map { b ->
-                b.lineIndices.sortedBy { readingKey(ocr[it]) }
+                b.lineIndices
+                    .sortedBy { readingKey(ocr[it]) }
                     .joinToString(" ") { ocr[it].text.trim() }
                     .trim()
             }

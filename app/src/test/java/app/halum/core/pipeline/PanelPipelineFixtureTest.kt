@@ -84,7 +84,13 @@ class PanelPipelineFixtureTest {
                     val b = o.getJSONArray("bbox")
                     OcrBlock(
                         text = o.getString("text"),
-                        bbox = floatArrayOf(b.getDouble(0).toFloat(), b.getDouble(1).toFloat(), b.getDouble(2).toFloat(), b.getDouble(3).toFloat()),
+                        bbox =
+                            floatArrayOf(
+                                b.getDouble(0).toFloat(),
+                                b.getDouble(1).toFloat(),
+                                b.getDouble(2).toFloat(),
+                                b.getDouble(3).toFloat(),
+                            ),
                         script = o.getString("script"),
                     )
                 }
@@ -94,7 +100,12 @@ class PanelPipelineFixtureTest {
                 List(arr.length()) { i ->
                     val b = arr.getJSONArray(i)
                     PanelPipeline.DetectedBubble(
-                        BubbleClassifier.Box(b.getDouble(0).toFloat(), b.getDouble(1).toFloat(), b.getDouble(2).toFloat(), b.getDouble(3).toFloat()),
+                        BubbleClassifier.Box(
+                            b.getDouble(0).toFloat(),
+                            b.getDouble(1).toFloat(),
+                            b.getDouble(2).toFloat(),
+                            b.getDouble(3).toFloat(),
+                        ),
                         ByteArray(w * h),
                     )
                 }
@@ -104,12 +115,14 @@ class PanelPipelineFixtureTest {
         val bridge = ChatBridge(page, NoSleepClock())
         val pipeline =
             PanelPipeline(
-                lens = object : PanelPipeline.LensClient {
-                    override fun recognize(panel: PanelPipeline.CapturedPanel) = ocr
-                },
-                bubbles = object : PanelPipeline.BubbleDetector {
-                    override fun detect(panel: PanelPipeline.CapturedPanel) = bubbles
-                },
+                lens =
+                    object : PanelPipeline.LensClient {
+                        override fun recognize(panel: PanelPipeline.CapturedPanel) = ocr
+                    },
+                bubbles =
+                    object : PanelPipeline.BubbleDetector {
+                        override fun detect(panel: PanelPipeline.CapturedPanel) = bubbles
+                    },
                 translator = BridgeTranslator(bridge),
                 clock = { 0L },
             )
