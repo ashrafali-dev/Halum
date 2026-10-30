@@ -24,9 +24,12 @@ class LensPort(
     ): List<OcrBlock> {
         val request =
             LensProtocol.Request(
+                // The reference sends 1/1 (chrome-lens-ocr
+                // `#createLensProtoRequest`). Proto3 omits zero-valued scalars
+                // from the wire entirely, so starting at 0 sent neither field.
                 uuid = System.currentTimeMillis(),
-                sequenceId = seq++,
-                imageSequenceId = 0,
+                sequenceId = ++seq,
+                imageSequenceId = 1,
                 width = width,
                 height = height,
                 targetLanguage = targetLanguage,

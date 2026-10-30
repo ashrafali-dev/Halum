@@ -4,7 +4,6 @@ import app.halum.core.LensProtocol
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.ByteArrayInputStream
 import java.io.File
 
 /** AC2 replay path + the rate limit and retry rules that guard the endpoint. */
@@ -130,22 +129,26 @@ class LensOcrClientTest {
     }
 
     @Test
-    fun `upload body frames the request and the dimensions`() {
-        val body = UploadBody.build(byteArrayOf(0x0A, 0x01, 0x02), 800, 1200)
+    fun `the serialised request reaches the transport verbatim`() {
+        // Lens takes the bare protobuf, not a multipart envelope (D5,
+        // chrome-lens-ocr `_sendProtoRequest`). A wrapper here is a 400.
+        var seen: ByteArray? = null
+        val transport =
+            object : LensTransport {
+                override fun post(
+                    bytes: ByteArray,
+                    width: Int,
+                    height: Int,
+                ): ByteArray {
+                    seen = bytes
+                    return fixture("lens_ko")
+                }
+            }
 
-        val image = UploadBody.extractPart(ByteArrayInputStream(body), UploadBody.IMAGE_FIELD)
-        val dims = UploadBody.extractPart(ByteArrayInputStream(body), UploadBody.DIMENSIONS_FIELD)
+        val sent = request()
 
-        assertEquals(listOf(0x0A.toByte(), 0x01, 0x02), image!!.toList())
-        assertEquals("800,1200", String(dims!!))
-    }
+        LensOcrClient(transport).recognize(sent, 800, 1200)
 
-    @Test
-    fun `upload body is one well-formed multipart document`() {
-        val body = String(UploadBody.build(ByteArray(4), 10, 10), Charsets.ISO_8859_1)
-
-        assertTrue(body.startsWith("--${UploadBody.BOUNDARY}\r\n"))
-        assertTrue(body.endsWith("--${UploadBody.BOUNDARY}--\r\n"))
-        assertEquals(2, Regex("name=\"").findAll(body).count())
+        assertEquals(sent.encode().toList(), seen!!.toList())
     }
 }
