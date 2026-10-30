@@ -114,8 +114,9 @@ class ChatBridge(
                     break
                 }
             }
+            // D6: a batch that answered nothing (timeout) or only partly is
+            // retried one block per send; the batch verdict is kept otherwise.
             if (batchOutcome == null) {
-                // D6 fallback: one block per send, max MAX_RETRIES per block.
                 batchOutcome = retryIndividually(batchTexts)
                 attempts += retryAttempts
             }
