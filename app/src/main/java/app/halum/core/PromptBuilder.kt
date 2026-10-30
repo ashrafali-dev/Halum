@@ -17,7 +17,10 @@ object PromptBuilder {
     }
 
     /** D7: chapter-level prompt keeps a character sheet so names stay stable. */
-    fun buildChapter(blocks: List<String>, characterSheet: String): String {
+    fun buildChapter(
+        blocks: List<String>,
+        characterSheet: String,
+    ): String {
         val sheet = characterSheet.trim()
         val preamble = if (sheet.isEmpty()) PREAMBLE else "$PREAMBLE\n\nCharacters:\n$sheet"
         val body =

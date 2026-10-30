@@ -17,8 +17,7 @@ class LensProtocolTest {
     private fun fixture(name: String): ByteArray = File(fixturesDir, name).readBytes()
 
     // org.json:json is a unit-test dependency; android.jar's copy throws.
-    private fun expected(name: String): JSONObject =
-        JSONObject(File(fixturesDir, name).readText())
+    private fun expected(name: String): JSONObject = JSONObject(File(fixturesDir, name).readText())
 
     private val fixturesDir: File
         get() {
@@ -132,18 +131,32 @@ class LensProtocolTest {
         // 2 = objects_response), so unknown fields are *appended* to it.
         val jspb = fixture("lens_ko.bin")
         val padded =
-            Proto.Writer()
+            Proto
+                .Writer()
                 .writeBytes(3, byteArrayOf(0x01, 0x02)) // future length-delimited field
                 .writeVarint(9, 3) // future varint field
                 .toByteArray()
         val combined = jspb + padded
         assertEquals(3, LensProtocol.decode(combined, 800, 1200).size)
         // An unknown field inside the text message must be skipped too.
-        val textField = Proto.Reader(jspb).let { it.readTag(); it.readLengthDelimited() }
-        val objects = Proto.Reader(textField.toByteArray()).let { it.readTag(); it.readLengthDelimited() }
-        val text = Proto.Reader(objects.toByteArray()).let { it.readTag(); it.readLengthDelimited() }
+        val textField =
+            Proto.Reader(jspb).let {
+                it.readTag()
+                it.readLengthDelimited()
+            }
+        val objects =
+            Proto.Reader(textField.toByteArray()).let {
+                it.readTag()
+                it.readLengthDelimited()
+            }
+        val text =
+            Proto.Reader(objects.toByteArray()).let {
+                it.readTag()
+                it.readLengthDelimited()
+            }
         val noisyText =
-            Proto.Writer()
+            Proto
+                .Writer()
                 .writeBytes(1, text.toByteArray())
                 .writeMessage(42, byteArrayOf(0x08, 0x01))
                 .writeString(2, "ko")
