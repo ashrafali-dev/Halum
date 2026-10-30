@@ -47,7 +47,7 @@ object HalumLog : Log.Sink {
     fun clear() = synchronized(ring) { ring.clear() }
 
     /** Count of error lines, for a quick "is something wrong". */
-    fun errorCount(): Int = synchronized(ring) { ring.count { it.startsWith("[E]") } }
+    fun errorCount(): Int = synchronized(ring) { ring.count { it.contains(" [E] ") } }
 
     private fun level(priority: Int): String =
         when {
