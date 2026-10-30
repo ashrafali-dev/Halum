@@ -70,6 +70,35 @@ def dump_node(interp, index: int) -> None:
             pass
 
 
+def paddings_not_rank1(interp) -> list[str]:
+    """PAD ops whose paddings tensor is not a rank-1 tensor of length 2*rank.
+
+    tensorflow-lite 2.16.1 asserts `SizeOfDimension(paddings, 0) == dims`
+    (pad.cc:123) and refuses to prepare the graph. Newer LiteRT releases relax
+    this, so a model that allocates in CI can still be dead on the device.
+    """
+    findings = []
+    details = {d["index"]: d for d in interp.get_tensor_details()}
+    try:
+        ops = interp._get_ops_details()  # noqa: SLF001 - only introspection API
+    except Exception:  # noqa: BLE001
+        return findings
+    for i, op in enumerate(ops):
+        if op["op_name"] not in ("PAD", "PADV2", "MIRROR_PAD"):
+            continue
+        if len(op["inputs"]) < 2:
+            continue
+        pads = details.get(int(op["inputs"][1]))
+        data = details.get(int(op["inputs"][0]))
+        if pads is None:
+            continue
+        shape = pads["shape"].tolist()
+        rank = len(data["shape"]) if data is not None else 0
+        if len(shape) != 1 or (rank and shape[0] != 2 * rank):
+            findings.append(f"node{i}:{op['op_name']} pads_shape={shape} data_rank={rank}")
+    return findings
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print(__doc__)
@@ -101,6 +130,15 @@ def main() -> int:
         return 1
     if len(outs) != 2:
         print(f"CHECK_TFLITE: path={path} outputs={len(outs)} expected=2")
+        return 1
+
+    # The Android runtime is pinned at tensorflow-lite 2.16.1, which rejects a
+    # PAD whose paddings tensor is not rank-1. Newer interpreters (the one this
+    # script runs on) accept it silently, so allocation success here is not
+    # sufficient — check the shape the device will choke on.
+    bad = paddings_not_rank1(interp)
+    if bad:
+        print(f"CHECK_TFLITE: path={path} paddings_rank1=false offending={bad}")
         return 1
 
     print(
