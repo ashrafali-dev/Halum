@@ -78,33 +78,32 @@ class LensProtocolTest {
             )
         val root = Proto.Reader(req.encode())
         assertEquals(1, root.readTag() ushr 3) // ServerRequest.objects_request = 1
-        val objects = Proto.Reader(root.readLengthDelimited())
+        val objects = root.readLengthDelimited()
         assertEquals(1, objects.readTag() ushr 3) // objects.request_context = 1
-        val ctx = Proto.Reader(objects.readLengthDelimited())
+        val ctx = objects.readLengthDelimited()
         assertEquals(3, ctx.readTag() ushr 3) // request_context.request_id = 3
-        val rid = Proto.Reader(ctx.readLengthDelimited())
+        val rid = ctx.readLengthDelimited()
         assertEquals(1, rid.readTag() ushr 3) // request_id.uuid = 1 (uint64)
         assertEquals(123L, rid.readVarint())
         assertEquals(2, rid.readTag() ushr 3) // request_id.sequence_id = 2
         assertEquals(4, ctx.readTag() ushr 3) // request_context.client_context = 4
-        val client = Proto.Reader(ctx.readLengthDelimited())
+        val client = ctx.readLengthDelimited()
         assertEquals(1, client.readTag() ushr 3) // ClientContext.platform = 1
         assertEquals(3L, client.readVarint()) // PLATFORM_WEB
         assertEquals(2, client.readTag() ushr 3) // ClientContext.surface = 2
         assertEquals(4L, client.readVarint()) // SURFACE_CHROMIUM
         assertEquals(3, objects.readTag() ushr 3) // objects.image_data = 3
-        val image = Proto.Reader(objects.readLengthDelimited())
+        val image = objects.readLengthDelimited()
         assertEquals(1, image.readTag() ushr 3) // ImageData.payload = 1
-        val payload = Proto.Reader(image.readLengthDelimited())
+        val payload = image.readLengthDelimited()
         assertEquals(1, payload.readTag() ushr 3) // ImagePayload.image_bytes = 1
         assertEquals(4, payload.readBytes().size)
         assertEquals(3, image.readTag() ushr 3) // ImageData.image_metadata = 3
-        val meta = Proto.Reader(image.readLengthDelimited())
+        val meta = image.readLengthDelimited()
         assertEquals(1, meta.readTag() ushr 3)
         assertEquals(800L, meta.readVarint())
         assertEquals(2, meta.readTag() ushr 3)
         assertEquals(1200L, meta.readVarint())
-    }
     }
 
     @Test
@@ -141,6 +140,6 @@ class LensProtocolTest {
         val json = expected("lens_ja.expected.json")
         val arr: JSONArray = json.getJSONArray("blocks")
         assertEquals(5, arr.length())
-        assertEquals("ja", json.getJSONObject(0).getString("script"))
+        assertEquals("ja", arr.getJSONObject(0).getString("script"))
     }
 }
