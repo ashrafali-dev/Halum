@@ -75,8 +75,10 @@ class ChatBridgeVerificationTest {
             val expectedMissing =
                 expect.getJSONArray("missing").let { a -> List(a.length()) { a.getInt(it) } }
             assertEquals("$name: missing", expectedMissing, out.missing)
-            if (reply != null) {
-                assertEquals("$name: one send per fixed-reply session", 1, page.injected.size)
+            // A refusal retries (batch + individual), so only the answered
+            // sessions are guaranteed a single send.
+            if (expectedState == ChatBridge.State.DONE) {
+                assertEquals("$name: one send", 1, page.injected.size)
             }
         }
     }

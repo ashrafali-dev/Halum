@@ -53,15 +53,15 @@ class SegDecoderTest {
 
     @Test
     fun `letterbox padding is subtracted and the scale undone`() {
-        // 800×1200 page -> scale 0.5333, resized 426×640, pad (107, 0).
+        // 800×1200 page -> scale 0.5333, resized 427×640, pad (106, 0).
         val page = SegDecoder.Letterbox.of(800, 1200)
         assertEquals(0.533333f, page.scale, 0.0001f)
-        assertEquals(107, page.padX)
+        assertEquals(106, page.padX)
         assertEquals(0, page.padY)
 
         val out = blankOutput()
         // A 100×100 box at the top-left of the resized area.
-        put(out, 0, cx = 107f + 50f, cy = 50f, w = 100f, h = 100f, score = 0.8f)
+        put(out, 0, cx = 106f + 50f, cy = 50f, w = 100f, h = 100f, score = 0.8f)
 
         val det = SegDecoder.decode(out, page)[0]
 
@@ -84,8 +84,9 @@ class SegDecoderTest {
 
     @Test
     fun `logits are passed through a sigmoid`() {
-        assertEquals(0.5f, SegDecoder.prob(0f), 0.001f)
-        assertEquals(0.731f, SegDecoder.prob(1f), 0.001f)
+        // prob() cannot tell 0 or 1 from a probability, so only values outside
+        // [0,1] prove the sigmoid path. 2.0 is a clear logit -> sigmoid = 0.881.
+        assertEquals(0.881f, SegDecoder.prob(2f), 0.001f)
         assertEquals(0.95f, SegDecoder.prob(0.95f), 0.001f) // already a probability
     }
 

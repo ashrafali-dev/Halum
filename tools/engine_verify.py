@@ -190,7 +190,8 @@ def check_bubbledetector(models_dir: str, out_dir: str) -> Result:
         ):
             failures.append(f"{name}: has small bubble references but none were detected")
 
-        _write_preview(img, dets, path, os.path.join(out_dir, name.replace(".", "_mask.png")))
+        stem = os.path.splitext(name)[0]
+        _write_preview(img, dets, path, os.path.join(out_dir, f"{stem}_bubbles.png"))
 
     with open(os.path.join(out_dir, "bubbles.json"), "w") as f:
         json.dump({"model": "juithealien/manga109-segmentation-bubble", "pages": per_page}, f, indent=2)

@@ -140,7 +140,7 @@ class InpaintEngine private constructor(
                         .initLocal()
                 ) {
                     Log.e(TAG, "OpenCV init failed; inpaint disabled")
-                    throw IllegalStateException("OpenCV unavailable")
+                    error("OpenCV unavailable")
                 }
                 openCvLoaded = true
             }

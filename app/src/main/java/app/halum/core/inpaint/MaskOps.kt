@@ -92,13 +92,13 @@ object MaskOps {
         for (y in 0 until height) {
             for (x in 0 until width) {
                 val i = y * width + x
-                if (mask[i].toInt() != 0) continue
-                if (!isNearMask(mask, width, height, x, y, ring)) continue
-                val p = pixels[i]
-                r += (p shr 16) and 0xFF
-                g += (p shr 8) and 0xFF
-                b += p and 0xFF
-                n++
+                if (mask[i].toInt() == 0 && isNearMask(mask, width, height, x, y, ring)) {
+                    val p = pixels[i]
+                    r += (p shr 16) and 0xFF
+                    g += (p shr 8) and 0xFF
+                    b += p and 0xFF
+                    n++
+                }
             }
         }
         if (n == 0) return WHITE

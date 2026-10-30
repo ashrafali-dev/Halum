@@ -47,7 +47,7 @@ class ModelStoreTest {
         assertTrue(model.file.isFile)
         assertEquals(4L, model.size)
         assertEquals(sha, model.sha256)
-        assertEquals(listOf(1, 2, 3, 4), model.file.readBytes().toList())
+        assertEquals(listOf<Byte>(1, 2, 3, 4), model.file.readBytes().toList())
     }
 
     @Test

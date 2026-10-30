@@ -45,7 +45,7 @@ class RateLimiter(
     @Synchronized
     fun acquire() {
         val now = clock()
-        while (calls.isNotEmpty() && now - calls.first() >= WINDOW_MS) calls.removeFirst()
+        while (calls.isNotEmpty() && now - calls.first() > WINDOW_MS) calls.removeFirst()
         if (calls.size >= perMinute) {
             val wait = WINDOW_MS - (now - calls.first())
             throw LensProtocol.LensException("rate limited; retry in ${wait}ms")

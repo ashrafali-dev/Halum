@@ -43,7 +43,7 @@ class OverlayView
                 textAlign = Paint.Align.LEFT
                 // D14.15 wants a bundled Bengali face; until one is added to
                 // res/font the system font is used rather than crashing.
-                typeface = bengaliTypeface(context)
+                typeface = bengaliTypeface()
             }
         private val fitter: TextFitter.Measure =
             TextFitter.Measure { text, sizePx ->
@@ -85,32 +85,37 @@ class OverlayView
 
         override fun onDraw(canvas: Canvas) {
             for (p in placements) {
-                val x = p.box.x1
-                val y = p.box.y1
-                val w = p.box.width
-                val h = p.box.height
-                if (w <= 0f || h <= 0f) continue
-                val art = p.bitmap
-                if (art != null) {
-                    canvas.drawBitmap(
-                        art,
-                        android.graphics.Rect(0, 0, art.width, art.height),
-                        android.graphics.RectF(x, y, x + w, y + h),
-                        bitmapPaint,
-                    )
-                    continue
-                }
-                textPaint.color = p.color
-                // D11: small bubbles get the small preset and never spill.
-                val sizePx = (if (p.isSmall) TextFitter.MIN_SP else TextFitter.MAX_SP) * density
-                val pad = if (p.isSmall) 1f else 3f
-                val fitted = TextFitter.fit(p.text, w - 2 * pad, h - 2 * pad, fitter)
-                textPaint.textSize = fitted.sizeSp * density
-                var ty = y + pad + textPaint.textSize
-                for (line in fitted.lines) {
-                    canvas.drawText(line, x + pad, ty, textPaint)
-                    ty += fitted.sizeSp * density * TextFitter.LINE_GAP
-                }
+                if (p.box.width > 0f && p.box.height > 0f) drawPlacement(canvas, p)
+            }
+        }
+
+        private fun drawPlacement(
+            canvas: Canvas,
+            p: Placement,
+        ) {
+            val x = p.box.x1
+            val y = p.box.y1
+            val w = p.box.width
+            val h = p.box.height
+            val art = p.bitmap
+            if (art != null) {
+                canvas.drawBitmap(
+                    art,
+                    android.graphics.Rect(0, 0, art.width, art.height),
+                    android.graphics.RectF(x, y, x + w, y + h),
+                    bitmapPaint,
+                )
+                return
+            }
+            textPaint.color = p.color
+            // D11: small bubbles get the small preset and never spill.
+            val pad = if (p.isSmall) 1f else 3f
+            val fitted = TextFitter.fit(p.text, w - 2 * pad, h - 2 * pad, fitter)
+            textPaint.textSize = fitted.sizeSp * density
+            var ty = y + pad + textPaint.textSize
+            for (line in fitted.lines) {
+                canvas.drawText(line, x + pad, ty, textPaint)
+                ty += fitted.sizeSp * density * TextFitter.LINE_GAP
             }
         }
 
@@ -133,6 +138,6 @@ class OverlayView
              * API 26+) is used. Add the .ttf and swap this lookup to
              * `ResourcesCompat.getFont(context, R.font.noto_sans_bengali)`.
              */
-            fun bengaliTypeface(context: Context): Typeface? = Typeface.SANS_SERIF
+            fun bengaliTypeface(): Typeface? = Typeface.SANS_SERIF
         }
     }

@@ -29,8 +29,9 @@ class LetterboxParityTest {
 
     @Test
     fun `a portrait page is width-limited`() {
-        // 836×1200: scale = 640/1200 = 0.53333
-        check(836, 1200, 0.533333f, 97, 0, 445, 640)
+        // 836×1200: scale = 640/1200 = 0.53333; 836*scale = 445.87 -> 446,
+        // padX = (640 - 446) / 2 = 97.
+        check(836, 1200, 0.533333f, 97, 0, 446, 640)
     }
 
     @Test
