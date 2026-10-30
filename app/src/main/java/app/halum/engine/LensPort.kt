@@ -46,7 +46,6 @@ class LensPort(
             store: (String) -> Unit,
         ): LensPort = LensPort(LensOcrClient(HttpTransport(cookies = cookies, storeCookies = store)))
 
-        fun replay(fixtures: List<ByteArray>): LensPort =
-            LensPort(LensOcrClient(ReplayTransport(fixtures)))
+        fun replay(fixtures: List<ByteArray>): LensPort = LensPort(LensOcrClient(ReplayTransport(fixtures)))
     }
 }
