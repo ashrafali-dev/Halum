@@ -104,7 +104,11 @@ def run(fixtures: str, models: str, out: str) -> int:
     os.makedirs(out, exist_ok=True)
     # The ONNX is the untranslated reference and is staged out of the APK;
     # the TFLite is what the app actually loads, so its presence is gated too.
-    onnx_path = os.path.join(os.path.dirname(models), "work", "bubble.onnx")
+    # layout: <root>/app/src/main/assets/models (tflite) and
+    #         <root>/.cache/models/work (reference onnx)
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(models)))))
+    onnx_path = os.path.join(root, ".cache", "models", "work", "bubble.onnx")
     tflite_path = os.path.join(models, "bubble.tflite")
     if not os.path.exists(onnx_path):
         log(f"FAIL no reference ONNX at {onnx_path} (fetch_models.sh should leave it there)")
