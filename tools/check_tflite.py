@@ -95,7 +95,14 @@ def paddings_not_rank1(interp) -> list[str]:
         shape = pads["shape"].tolist()
         rank = len(data["shape"]) if data is not None else 0
         if len(shape) != 1 or (rank and shape[0] != 2 * rank):
-            findings.append(f"node{i}:{op['op_name']} pads_shape={shape} data_rank={rank}")
+            # The next op usually says what this pad belongs to (ONNX Conv and
+            # MaxPool lower to an explicit PAD + the op itself).
+            nxt = ops[i + 1]["op_name"] if i + 1 < len(ops) else "end"
+            prev = ops[i - 1]["op_name"] if i > 0 else "start"
+            findings.append(
+                f"node{i}:{op['op_name']} pads_shape={shape} data_rank={rank} "
+                f"prev={prev} next={nxt}"
+            )
     return findings
 
 
