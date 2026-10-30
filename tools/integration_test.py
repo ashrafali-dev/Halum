@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import socket
 import sys
@@ -98,9 +99,13 @@ def load_detector(onnx_path: str, imgsz: int = 640):
         if preds.shape[0] < preds.shape[1]:      # channels-first
             preds = preds.T
         # YOLO11-seg: [cx, cy, w, h, cls..., seg coeffs...]; one class here.
-        res = []
+        # Class scores go through a sigmoid: [[0,1]] is already probabilities.
+        def prob(v: float) -> float:
+            return float(v) if 0.0 <= v <= 1.0 else 1.0 / (1.0 + math.exp(-v))
+
+        raw = []
         for row in preds:
-            score = float(row[4])
+            score = prob(float(row[4]))
             if score < 0.25:
                 continue
             cx, cy, bw, bh = (float(v) for v in row[:4])
@@ -108,8 +113,14 @@ def load_detector(onnx_path: str, imgsz: int = 640):
             y1 = (cy - bh / 2 - pad_y) / scale
             x2 = (cx + bw / 2 - pad_x) / scale
             y2 = (cy + bh / 2 - pad_y) / scale
-            res.append([round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1), round(score, 3)])
-        res.sort(key=lambda r: r[4], reverse=True)
+            raw.append([x1, y1, x2, y2, score])
+        # NMS: ultralytics exports do not include it, and without it every
+        # visible bubble appears 3-4 times (run 40989519314: 70 on frieren).
+        raw.sort(key=lambda r: r[4], reverse=True)
+        res = []
+        for box in raw:
+            if all(iou(box, kept) < 0.45 for kept in res):
+                res.append([round(v, 1) for v in box[:4]] + [round(box[4], 3)])
         return res
 
     return boxes
