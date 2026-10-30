@@ -114,3 +114,21 @@ All five workflows green on `d9a03b0`.
     so AC4 is restated as a *change* + *flatness* check (D14.3).
   - MI-GAN output range is unclipped −0.8..1.8.
 - CI: none (memory commit only).
+
+## 2026-10-30 10:05 UTC — session 4 (continued): Steps 2-4 + Q1-Q3 green
+
+All four required workflows pass on `ddb36a7`.
+
+- Step 2 PanelPipeline (core + Android adapter) + fixture end-to-end test.
+- Step 3 ScanChapterRunner (chapter pass with character sheet) and
+  RealtimeRunner (latest-wins generation guard).
+- Step 4 MainActivity: PNGLess capture via View.draw on a worker, overlay
+  placement, dismiss-on-scroll, long-press bubble edit, settings dialog.
+- Q1 chat_bridge.js auto-discovers ChatGPT/Claude/Gemini/generic; inject()
+  returns a result object so Kotlin logs BRIDGE_ADAPTER/BRIDGE_FAIL and toasts.
+- Q2 PromptTemplate + HalumPrefs: global prompt (persisted, resettable),
+  per-chapter override, per-bubble manual edit.
+- Q3 AdBlockRules (pure) + AdBlockWebViewClient: host+path network block with
+  a panel-CDN allowlist, ad-only CSS with a panel-count rollback, analytics
+  script removal. Settings toggle defaults ON.
+- D21 verified: standard universal APK 58.2 MB, both ABIs, no MI-GAN.

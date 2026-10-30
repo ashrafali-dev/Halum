@@ -5,9 +5,10 @@
 
 **Last updated:** 2026-10-30 (session 4)
 **Branch:** `main`
-**Current phase:** D19 Step 1 DONE (6/6 green). Steps 2 and 3 committed,
-CI verifying (no local build, D20). Next: read CI result, fix failures,
-then Step 4 (MainActivity wiring).
+**Current phase:** D19 Steps 1-4 written and green in CI (`ddb36a7`):
+build+lint+integration+format pass. Q1 (bridge adapters), Q2 (editable
+prompts), Q3 (3-layer ad block) implemented. Next: on-device sanity,
+memory-test.yml, `v0.1.0`.
 
 ## Snapshot
 
@@ -65,11 +66,15 @@ then Step 4 (MainActivity wiring).
 
 ## What is next (exact order, D19)
 
-1. ~~Step 1 — engine verification~~ **DONE.**
-2. ~~Step 2 — PanelPipeline~~ committed `077b489`; CI result pending.
-3. ~~Step 3 — ScanChapterRunner + RealtimeRunner~~ committed `1e731ee`; CI pending.
-4. **Step 4 — MainActivity wiring**, AC8 + AC10.
-5. **Step 5 — all workflows green**, **Step 6 — tag v0.1.0**.
+1. ~~Step 1 — engine verification~~ **DONE (6/6).**
+2. ~~Step 2 — PanelPipeline~~ **done, green** (`PanelPipelineTest`, `PanelPipelineFixtureTest`).
+3. ~~Step 3 — ScanChapterRunner + RealtimeRunner~~ **done, green** (`RunnersTest`).
+4. ~~Step 4 — MainActivity wiring~~ **done**: capture, overlay, dismiss-on-scroll,
+   long-press edit, settings, both WebViews. AC8 covered by overlay tests.
+5. ~~Q1/Q2/Q3~~ **done**: adapters, editable prompts (3 levels), 3-layer ad block
+   (`AdBlockRulesTest`, `PromptTemplateTest`).
+6. **Remaining**: on-device smoke test, `memory-test.yml` first run,
+   hand-annotate `wha.jpg` (real AC3), D2 Lens capture (AC2), then tag `v0.1.0`.
 
 Independently still open: hand-annotate `wha.jpg` for real AC3 ground truth
 (D18 only locks regressions), and a D2 Lens live capture for AC2.
