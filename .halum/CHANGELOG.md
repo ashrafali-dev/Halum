@@ -3,6 +3,116 @@
 Session-by-session log. Newest first. Each entry: date, what changed,
 what CI said.
 
+## 2026-10-30 — session 5: first device run, crash fixed
+
+The user installed the APK. Tapping **Translate panel** killed the app before
+OCR; Scan/Realtime had no start or stop.
+
+- **Crash root cause**: `buildPipeline()` ran on the UI thread (copy 5.86 MB
+  model → SHA-256 → mmap → `Interpreter`), an OOM on a 192 MB heap. Pipeline
+  construction and `process` now both run on the worker, guarded by a
+  single-flight `busy` flag; failures log `PIPE_FAILED` instead of silently
+  showing "OCR unavailable".
+- **Memory**: captures downsample to a 1280px long edge (`MAX_CAPTURE_EDGE`)
+  and overlay boxes are rescaled back to view space; the bubble adapter no
+  longer allocates a page-sized mask per bubble that `PanelPipeline` never
+  reads (~2.6 MB × bubbles).
+- **Start/Stop**: new toolbar button. Realtime re-translates on scroll while
+  running; Scan translates the visible panel once on Start.
+- **HalumLog**: 2,000-line ring buffer behind `Log.sink`, chained to logcat,
+  read by a new **Copy log** button. `SimpleDateFormat` moved under the ring
+  lock (was shared across UI/worker/WebView threads). `HalumLogTest`, 5 tests.
+- CI: build `41042185328`, lint, integration all green on `a14aed5`.
+  **Device behaviour unverified** — CI cannot reproduce an OOM.
+
+## 2026-10-30 — session 5: first device run, crash fixed
+
+The user installed the APK. Tapping **Translate panel** killed the app before
+OCR; Scan/Realtime had no start or stop.
+
+- **Crash root cause**: `buildPipeline()` ran on the UI thread (copy 5.86 MB
+  model → SHA-256 → mmap → `Interpreter`), an OOM on a 192 MB heap. Pipeline
+  construction and `process` now both run on the worker, guarded by a
+  single-flight `busy` flag; failures log `PIPE_FAILED` instead of silently
+  showing "OCR unavailable".
+- **Memory**: captures downsample to a 1280px long edge (`MAX_CAPTURE_EDGE`)
+  and overlay boxes are rescaled back to view space; the bubble adapter no
+  longer allocates a page-sized mask per bubble that `PanelPipeline` never
+  reads (~2.6 MB × bubbles).
+- **Start/Stop**: new toolbar button. Realtime re-translates on scroll while
+  running; Scan translates the visible panel once on Start.
+- **HalumLog**: 2,000-line ring buffer behind `Log.sink`, chained to logcat,
+  read by a new **Copy log** button. `SimpleDateFormat` moved under the ring
+  lock (was shared across UI/worker/WebView threads). `HalumLogTest`, 5 tests.
+- CI: build `41042185328`, lint, integration all green on `a14aed5`.
+  **Device behaviour unverified** — CI cannot reproduce an OOM.
+
+## 2026-10-30 — session 5: first device run, crash fixed
+
+The user installed the APK. Tapping **Translate panel** killed the app before
+OCR; Scan/Realtime had no start or stop.
+
+- **Crash root cause**: `buildPipeline()` ran on the UI thread (copy 5.86 MB
+  model → SHA-256 → mmap → `Interpreter`), an OOM on a 192 MB heap. Pipeline
+  construction and `process` now both run on the worker, guarded by a
+  single-flight `busy` flag; failures log `PIPE_FAILED` instead of silently
+  showing "OCR unavailable".
+- **Memory**: captures downsample to a 1280px long edge (`MAX_CAPTURE_EDGE`)
+  and overlay boxes are rescaled back to view space; the bubble adapter no
+  longer allocates a page-sized mask per bubble that `PanelPipeline` never
+  reads (~2.6 MB × bubbles).
+- **Start/Stop**: new toolbar button. Realtime re-translates on scroll while
+  running; Scan translates the visible panel once on Start.
+- **HalumLog**: 2,000-line ring buffer behind `Log.sink`, chained to logcat,
+  read by a new **Copy log** button. `SimpleDateFormat` moved under the ring
+  lock (was shared across UI/worker/WebView threads). `HalumLogTest`, 5 tests.
+- CI: build `41042185328`, lint, integration all green on `a14aed5`.
+  **Device behaviour unverified** — CI cannot reproduce an OOM.
+
+## 2026-10-30 — session 5: first device run, crash fixed
+
+The user installed the APK. Tapping **Translate panel** killed the app before
+OCR; Scan/Realtime had no start or stop.
+
+- **Crash root cause**: `buildPipeline()` ran on the UI thread (copy 5.86 MB
+  model → SHA-256 → mmap → `Interpreter`), an OOM on a 192 MB heap. Pipeline
+  construction and `process` now both run on the worker, guarded by a
+  single-flight `busy` flag; failures log `PIPE_FAILED` instead of silently
+  showing "OCR unavailable".
+- **Memory**: captures downsample to a 1280px long edge (`MAX_CAPTURE_EDGE`)
+  and overlay boxes are rescaled back to view space; the bubble adapter no
+  longer allocates a page-sized mask per bubble that `PanelPipeline` never
+  reads (~2.6 MB × bubbles).
+- **Start/Stop**: new toolbar button. Realtime re-translates on scroll while
+  running; Scan translates the visible panel once on Start.
+- **HalumLog**: 2,000-line ring buffer behind `Log.sink`, chained to logcat,
+  read by a new **Copy log** button. `SimpleDateFormat` moved under the ring
+  lock (was shared across UI/worker/WebView threads). `HalumLogTest`, 5 tests.
+- CI: build `41042185328`, lint, integration all green on `a14aed5`.
+  **Device behaviour unverified** — CI cannot reproduce an OOM.
+
+## 2026-10-30 — session 5: first device run, crash fixed
+
+The user installed the APK. Tapping **Translate panel** killed the app before
+OCR; Scan/Realtime had no start or stop.
+
+- **Crash root cause**: `buildPipeline()` ran on the UI thread (copy 5.86 MB
+  model → SHA-256 → mmap → `Interpreter`), an OOM on a 192 MB heap. Pipeline
+  construction and `process` now both run on the worker, guarded by a
+  single-flight `busy` flag; failures log `PIPE_FAILED` instead of silently
+  showing "OCR unavailable".
+- **Memory**: captures downsample to a 1280px long edge (`MAX_CAPTURE_EDGE`)
+  and overlay boxes are rescaled back to view space; the bubble adapter no
+  longer allocates a page-sized mask per bubble that `PanelPipeline` never
+  reads (~2.6 MB × bubbles).
+- **Start/Stop**: new toolbar button. Realtime re-translates on scroll while
+  running; Scan translates the visible panel once on Start.
+- **HalumLog**: 2,000-line ring buffer behind `Log.sink`, chained to logcat,
+  read by a new **Copy log** button. `SimpleDateFormat` moved under the ring
+  lock (was shared across UI/worker/WebView threads). `HalumLogTest`, 5 tests.
+- CI: build `41042185328`, lint, integration all green on `a14aed5`.
+  **Device behaviour unverified** — CI cannot reproduce an OOM.
+
 ## 2026-10-30 18:xx UTC — session 4 (continued): Step 1 green
 
 **D19 Step 1 is done — 6/6 engine checks green** (integration 41027485611),

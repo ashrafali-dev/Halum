@@ -3,7 +3,7 @@
 > **Read this first.** It is the single source of truth for resuming.
 > Update it before every session ends and on every milestone commit.
 
-**Last updated:** 2026-10-30 (session 4)
+**Last updated:** 2026-10-30 (session 5)
 **Branch:** `main`
 **Current phase:** D19 Steps 1-4 written and green in CI (`ddb36a7`):
 build+lint+integration+format pass. Q1 (bridge adapters), Q2 (editable
@@ -49,10 +49,33 @@ memory-test.yml, `v0.1.0`.
 - Real counts, verified in CI: frieren 7 (probe agreement), motl 7,
   wha 12, ajin 5.
 
+## Session 5 — first on-device run
+
+The user installed the APK and ran it. Two reports: the app **crashed on the
+first tap of "Translate panel", before OCR**, and there was **no way to start
+or stop** Scan/Realtime.
+
+Both are fixed in `a14aed5` (build, lint, integration green):
+
+- Crash: `buildPipeline()` ran on the UI thread — copy 5.86 MB model + SHA-256
+  + mmap + `Interpreter` = OOM on a 192 MB heap. Now built and run on the
+  worker behind a single-flight guard. Captures downsample to a 1280px long
+  edge (boxes rescaled back to view space) and the per-bubble page-sized mask
+  that nothing read is gone.
+- Start/Stop added. Realtime follows scroll; Scan translates once on Start.
+- `HalumLog` ring buffer + **Copy log** button, so a crash can be reported
+  without adb. 5 tests.
+
+**Still unconfirmed on device.** CI cannot reproduce an OOM; the next install
+is the real test. If it still dies, the Copy log button now gives the trace.
+
 ## What is broken / blocked
 
-1. **Engines are written but not wired.** Lens/bubble/inpaint/overlay classes
-   exist; `MainActivity` only browses two WebViews (Phase 3 pipeline missing).
+1. **Engines are wired but the path is unproven.** Translate now runs Lens →
+   bubble detect → bridge → overlay off the UI thread, and Start/Stop exists.
+   `InpaintEngine` is still never called (text is drawn over the original
+   art), and Scan is a single visible panel, not the `ScanChapterRunner`
+   chapter pass.
 2. **AC3 references are self-generated** (same model). Locks regressions,
    is not independent ground truth — see BUGS.md.
 3. MI-GAN now has documented download URLs in `fetch_models.sh`; whether the

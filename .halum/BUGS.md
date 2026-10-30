@@ -4,6 +4,38 @@ Format: `[OPEN|FIXING|FIXED] short title` — symptom, root cause, fix, run id.
 
 ## Fixed
 
+### [FIXING] app died on the first "Translate panel" tap, before OCR
+- Session 5 device report: tap Translate → crash. `translateVisiblePanel`
+  called `buildPipeline()` on the **UI thread**, which copies the 5.86 MB
+  `bubble.tflite` out of assets, SHA-256s it, mmaps it and constructs a TFLite
+  `Interpreter`. On the 192 MB heap that is an OOM before any OCR runs.
+  Two more allocations sat on the same path: `captureView` grabbed the full
+  screen at ARGB_8888 (1080x2400 = 10.4 MB) and the bubble adapter built a
+  page-sized mask per bubble (~2.6 MB each) that `PanelPipeline` never reads.
+- Fix (`71a9620`): pipeline construction + `process` both run on the worker
+  behind a single-flight `busy` flag; captures are downsampled to a 1280px
+  long edge and overlay boxes are rescaled back to view space; the mask
+  allocation is removed. `runCatching` now logs `PIPE_FAILED` instead of
+  silently returning null.
+- CI: build/lint/integration green on `a14aed5`. **Not yet confirmed on the
+  device** — CI cannot reproduce a heap OOM.
+
+### [FIXED] no way to start or stop Scan / Realtime
+- `ScanChapterRunner` and `RealtimeRunner` were written and unit-tested but no
+  UI reached them; the mode toggle only set a field.
+- Fix: `btnStartStop` toggles `running`. Realtime re-translates the visible
+  panel on scroll while running; Scan translates once on Start. The full
+  chapter walk still needs a panel list from the page, so Scan is not yet the
+  multi-panel pass the runner implements — tracked as OPEN below.
+
+### [FIXED] HalumLog ring buffer: thread-unsafe timestamp, wrong error count
+- `SimpleDateFormat` was shared across UI, worker and WebView threads (writes
+  can interleave) and `errorCount` counted warnings as errors, then matched a
+  `startsWith("[E]")` prefix that the leading timestamp never satisfies.
+- Fix: formatting moved inside the ring lock; level tags are `[E]`/`[W]`;
+  `errorCount` matches `" [E] "`. `HalumLogTest` covers it.
+
+
 ### [FIXED] integration-test red: `tools/integration_test.py` missing
 - Run 40988332235: `python3: can't open file tools/integration_test.py`.
   The workflow referenced a file nobody wrote.
@@ -28,6 +60,15 @@ Format: `[OPEN|FIXING|FIXED] short title` — symptom, root cause, fix, run id.
   depends on a D2 live capture for independence.
 
 ## Open
+
+### [OPEN] InpaintEngine is never called
+- `OverlayView` draws translated text straight over the original artwork;
+  nothing fills the bubbles first. AC4 numbers (MI-GAN residual) come from the
+  CI harness, not from the app path. Wiring it is Phase 3 work.
+
+### [OPEN] Scan mode is not a chapter pass yet
+- Start translates the visible panel once. `ScanChapterRunner` wants a list of
+  panels plus a character sheet, which needs page-level panel discovery.
 
 ### [OPEN] AC2 fixtures are self-built, so AC2 is not yet independent
 - Both `.bin` files and `LensProtocol` were derived from the same proto
