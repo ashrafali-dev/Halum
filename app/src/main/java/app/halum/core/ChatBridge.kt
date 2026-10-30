@@ -141,9 +141,16 @@ class ChatBridge(
                 if (cancelled || out[i] != null) return@repeat
                 retryAttempts++
                 val reply = sendAwait(PromptBuilder.build(listOf(batchTexts[i]))) ?: return@repeat
-                // Single-block replies are often bare text with no marker.
+                // A one-block reply may come back as bare prose. ResponseParser
+                // would accept any single line positionally, including a chat
+                // refusal, so it is only used when it actually found a marker.
                 val parsed = ResponseParser.parse(reply, 1)
-                out[i] = parsed.translations.firstOrNull() ?: bareText(reply)
+                out[i] =
+                    if (parsed.mode == ResponseParser.Mode.MARKERS) {
+                        parsed.translations.firstOrNull()
+                    } else {
+                        bareText(reply)
+                    }
             }
         }
         return out.asList()
@@ -157,6 +164,7 @@ class ChatBridge(
     private fun bareText(reply: String): String? {
         val text = reply.trim()
         if (text.isEmpty() || text.length > MAX_BARE_CHARS) return null
+        // Refusals must not be painted on the artwork (see REFUSAL_MARKERS).
         val lower = text.lowercase()
         if (REFUSAL_MARKERS.any { lower.contains(it) }) return null
         return text

@@ -60,10 +60,10 @@ object TextFitter {
             return Fitted(lines.joinToString("\n"), MIN_SP, lines, false)
         }
         val kept = lines.take(maxLines).toMutableList()
-        // A kept line can still overflow horizontally (one very long word).
-        for (i in kept.indices) {
-            kept[i] = ellipsise(kept[i], boxWidthPx, MIN_SP, measure).text
-        }
+        // Text after the last visible line is what got cut, so that line ends
+        // with an ellipsis even when it fits on its own.
+        val last = kept.last()
+        kept[kept.lastIndex] = ellipsise("$last…", boxWidthPx, MIN_SP, measure).text
         return Fitted(kept.joinToString("\n"), MIN_SP, kept, true)
     }
 

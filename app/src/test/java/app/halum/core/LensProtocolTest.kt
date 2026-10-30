@@ -17,7 +17,8 @@ class LensProtocolTest {
     private fun fixture(name: String): ByteArray = File(fixturesDir, name).readBytes()
 
     // org.json:json is a unit-test dependency; android.jar's copy throws.
-    private fun expected(name: String): JSONObject = JSONObject(File(fixturesDir, name).readText())
+    private fun expected(name: String): JSONObject =
+        JSONObject(File(fixturesDir, name).readText())
 
     private val fixturesDir: File
         get() {
@@ -127,28 +128,29 @@ class LensProtocolTest {
 
     @Test
     fun `unknown fields do not break decoding`() {
-        // The fixture is a bare ObjectsResponse (as emitted by the reference
-        // client); wrap it in a real ServerResponse and add future fields.
+        // The fixture already is a complete ServerResponse (its first field is
+        // 2 = objects_response), so unknown fields are *appended* to it.
         val jspb = fixture("lens_ko.bin")
-        val wrapped =
-            Proto
-                .Writer()
-                .writeMessage(2, jspb) // objects_response
-                .writeString(5, "future-field")
-                .writeVarint(9, 3)
+        val padded =
+            Proto.Writer()
+                .writeBytes(3, byteArrayOf(0x01, 0x02)) // future length-delimited field
+                .writeVarint(9, 3) // future varint field
                 .toByteArray()
-        assertEquals(3, LensProtocol.decode(wrapped, 800, 1200).size)
-        // An unknown field *inside* objects_response must be skipped too.
-        val inner = Proto.Reader(jspb)
-        val textField = inner.readLengthDelimited() // objectsResponse.text = 3
-        val objects =
-            Proto
-                .Writer()
-                .writeMessage(11, byteArrayOf(1, 2)) // future field
-                .writeMessage(3, textField.toByteArray())
+        val combined = jspb + padded
+        assertEquals(3, LensProtocol.decode(combined, 800, 1200).size)
+        // An unknown field inside the text message must be skipped too.
+        val textField = Proto.Reader(jspb).let { it.readTag(); it.readLengthDelimited() }
+        val objects = Proto.Reader(textField.toByteArray()).let { it.readTag(); it.readLengthDelimited() }
+        val text = Proto.Reader(objects.toByteArray()).let { it.readTag(); it.readLengthDelimited() }
+        val noisyText =
+            Proto.Writer()
+                .writeBytes(1, text.toByteArray())
+                .writeMessage(42, byteArrayOf(0x08, 0x01))
+                .writeString(2, "ko")
                 .toByteArray()
-        val nested = Proto.Writer().writeMessage(2, objects).toByteArray()
-        assertEquals(3, LensProtocol.decode(nested, 800, 1200).size)
+        val noisyObjects = Proto.Writer().writeMessage(3, noisyText).toByteArray()
+        val noisy = Proto.Writer().writeMessage(2, noisyObjects).toByteArray()
+        assertEquals(3, LensProtocol.decode(noisy, 800, 1200).size)
     }
 
     @Test
