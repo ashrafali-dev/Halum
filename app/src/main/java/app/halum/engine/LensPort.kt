@@ -40,10 +40,17 @@ class LensPort(
         /** Host whose cookies Lens shares; used for the HttpTransport jar. */
         const val HOST = "https://lensfrontend-pa.googleapis.com"
 
-        fun http(cookies: () -> String?, store: (String) -> Unit): LensPort =
-            LensPort(LensOcrClient(HttpTransport(cookies = cookies, storeCookies = store)))
+        fun http(
+            cookies: () -> String?,
+            store: (String) -> Unit,
+        ): LensPort = LensPort(LensOcrClient(HttpTransport(cookies = cookies, storeCookies = store)))
 
         fun replay(fixtures: List<ByteArray>): LensPort =
-            LensPort(LensOcrClient(app.halum.core.lens.ReplayTransport(fixtures)))
+            LensPort(
+                LensOcrClient(
+                    app.halum.core.lens
+                        .ReplayTransport(fixtures),
+                ),
+            )
     }
 }

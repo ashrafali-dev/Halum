@@ -67,8 +67,11 @@ class WebViewChatPage(
             val inputFound = o.optBoolean("inputFound")
             val submitFound = o.optBoolean("submitFound")
             if (o.optBoolean("ok")) {
-                Log.i(TAG, "BRIDGE_ADAPTER: host=${webView.url ?: "?"} adapter=$adapter " +
-                    "inputFound=$inputFound submitFound=$submitFound")
+                Log.i(
+                    TAG,
+                    "BRIDGE_ADAPTER: host=${webView.url ?: "?"} adapter=$adapter " +
+                        "inputFound=$inputFound submitFound=$submitFound",
+                )
             } else {
                 val reason = o.optString("reason", "unknown")
                 Log.w(TAG, "BRIDGE_FAIL: reason=$reason adapter=$adapter")

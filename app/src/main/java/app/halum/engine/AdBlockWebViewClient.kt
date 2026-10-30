@@ -58,16 +58,21 @@ class AdBlockWebViewClient(
         delegate?.onPageFinished(view, url)
         if (!enabled()) return
         applyDomLayers(view)
-        Log.i(TAG, "ADBLOCK_SUMMARY: net_blocked=$netBlocked css_rules=${CSS.size} scripts_removed=$SCRIPTS.size rollback=false")
+        Log.i(
+            TAG,
+            "ADBLOCK_SUMMARY: net_blocked=$netBlocked css_rules=${CSS.size} scripts_removed=$SCRIPTS.size rollback=false",
+        )
     }
 
     /** Layers 2 + 3 with the panel-count safety net around layer 2. */
     private fun applyDomLayers(view: WebView) {
         // Record the panel count, inject CSS, then re-check after 2 s.
         view.evaluateJavascript(PANEL_COUNT_JS) { before ->
-            view.evaluateJavascript("(function(){var s=document.createElement('style');" +
-                "s.id='halum-adblock';s.textContent=${quote(CSS_JOINED)};" +
-                "document.head.appendChild(s);return true;})();") { _ ->
+            view.evaluateJavascript(
+                "(function(){var s=document.createElement('style');" +
+                    "s.id='halum-adblock';s.textContent=${quote(CSS_JOINED)};" +
+                    "document.head.appendChild(s);return true;})();",
+            ) { _ ->
                 Log.i(TAG, "ADBLOCK_CSS: injected rules=${CSS.size}")
             }
             view.postDelayed({
@@ -111,17 +116,26 @@ class AdBlockWebViewClient(
         /** Network-specific selectors only; never broad [class*="ad"]. */
         val CSS =
             listOf(
-                "[id*=\"google_ads\"]", "[id*=\"div-gpt-ad\"]",
-                "[class*=\"advert\"]", "[class*=\"adsbygoogle\"]", "[class*=\"sponsored\"]",
-                "[data-ad-slot]", "iframe[src*=\"doubleclick\"]",
-                "iframe[src*=\"googlesyndication\"]", "[id^=\"taboola\"]", "[class*=\"outbrain\"]",
+                "[id*=\"google_ads\"]",
+                "[id*=\"div-gpt-ad\"]",
+                "[class*=\"advert\"]",
+                "[class*=\"adsbygoogle\"]",
+                "[class*=\"sponsored\"]",
+                "[data-ad-slot]",
+                "iframe[src*=\"doubleclick\"]",
+                "iframe[src*=\"googlesyndication\"]",
+                "[id^=\"taboola\"]",
+                "[class*=\"outbrain\"]",
             )
         val CSS_JOINED = CSS.joinToString(",") { "$it{display:none !important;}" }
 
         val SCRIPTS =
             listOf(
-                "google-analytics.com", "googletagmanager.com",
-                "facebook.net/en_US/fbevents.js", "hotjar.com", "mixpanel.com",
+                "google-analytics.com",
+                "googletagmanager.com",
+                "facebook.net/en_US/fbevents.js",
+                "hotjar.com",
+                "mixpanel.com",
             )
         val SCRIPT_REMOVE_JS =
             "(function(){var p=${org.json.JSONArray(SCRIPTS)};var n=0;" +

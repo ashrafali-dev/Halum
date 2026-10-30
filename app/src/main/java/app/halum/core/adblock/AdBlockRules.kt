@@ -13,11 +13,23 @@ object AdBlockRules {
     /** Substrings that identify an ad/analytics request path or host. */
     val BLOCK_MARKERS =
         listOf(
-            "/pagead/", "/adsbygoogle/", "/doubleclick/", "/googlesyndication/",
-            "/amazon-adsystem/", "/adsrvr/", "/criteo/", "/taboola/",
-            "/outbrain/", "/scorecardresearch/", "/quantserve/",
-            "/google-analytics/", "/googletagmanager/", "/facebook.com/tr",
-            "/hotjar/", "/mixpanel/", "/segment.io/",
+            "/pagead/",
+            "/adsbygoogle/",
+            "/doubleclick/",
+            "/googlesyndication/",
+            "/amazon-adsystem/",
+            "/adsrvr/",
+            "/criteo/",
+            "/taboola/",
+            "/outbrain/",
+            "/scorecardresearch/",
+            "/quantserve/",
+            "/google-analytics/",
+            "/googletagmanager/",
+            "/facebook.com/tr",
+            "/hotjar/",
+            "/mixpanel/",
+            "/segment.io/",
         )
 
     /** Hosts that must never be blocked — they carry manga panels. */

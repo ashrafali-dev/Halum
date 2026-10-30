@@ -17,6 +17,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import app.halum.core.ChatBridge
+import app.halum.databinding.ActivityMainBinding
 import app.halum.engine.AdBlockWebViewClient
 import app.halum.engine.AndroidPanelPipeline
 import app.halum.engine.BubbleDetector
@@ -25,7 +26,6 @@ import app.halum.engine.LensPort
 import app.halum.engine.WebViewChatPage
 import app.halum.model.Models
 import app.halum.util.Log
-import app.halum.databinding.ActivityMainBinding
 import java.util.concurrent.Executors
 
 /**
@@ -177,7 +177,8 @@ class MainActivity : AppCompatActivity() {
         }
         val placements =
             outcome.placements.map {
-                app.halum.overlay.OverlayView.Placement(it.box, it.text, it.isSmall)
+                app.halum.overlay.OverlayView
+                    .Placement(it.box, it.text, it.isSmall)
             }
         binding.overlay.show(placements, binding.mainWebView.scrollY)
         setProgress(100, getString(R.string.progress_panel, outcome.placements.size, outcome.bubbles))
