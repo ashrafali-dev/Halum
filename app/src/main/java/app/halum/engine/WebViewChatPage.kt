@@ -61,22 +61,15 @@ class WebViewChatPage(
         // Q1: the script returns {ok,inputFound,submitFound,adapter}; log the
         // adapter choice and a precise failure reason instead of silently
         // no-op'ing when the chat UI was not recognised.
-        runCatching {
-            val o = org.json.JSONTokener(raw).nextValue() as? org.json.JSONObject ?: return@runCatching
-            val adapter = o.optString("adapter", "none")
-            val inputFound = o.optBoolean("inputFound")
-            val submitFound = o.optBoolean("submitFound")
-            if (o.optBoolean("ok")) {
-                Log.i(
-                    TAG,
-                    "BRIDGE_ADAPTER: host=${webView.url ?: "?"} adapter=$adapter " +
-                        "inputFound=$inputFound submitFound=$submitFound",
-                )
-            } else {
-                val reason = o.optString("reason", "unknown")
-                Log.w(TAG, "BRIDGE_FAIL: reason=$reason adapter=$adapter")
-                onBridgeFail?.invoke(reason)
-            }
+        val parsed = runCatching { org.json.JSONTokener(raw).nextValue() as? org.json.JSONObject }.getOrNull()
+        val o = parsed ?: return
+        val adapter = o.optString("adapter", "none")
+        if (o.optBoolean("ok")) {
+            Log.i(TAG, "BRIDGE_ADAPTER: host=${webView.url ?: "?"} adapter=$adapter")
+        } else {
+            val reason = o.optString("reason", "unknown")
+            Log.w(TAG, "BRIDGE_FAIL: reason=$reason adapter=$adapter")
+            onBridgeFail?.invoke(reason)
         }
     }
 

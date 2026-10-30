@@ -25,6 +25,7 @@ import app.halum.engine.HalumPrefs
 import app.halum.engine.LensPort
 import app.halum.engine.WebViewChatPage
 import app.halum.model.Models
+import app.halum.overlay.OverlayView
 import app.halum.util.Log
 import java.util.concurrent.Executors
 
@@ -111,7 +112,7 @@ class MainActivity : AppCompatActivity() {
         binding.mainWebView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
             if (scrollY != lastOverlayScrollY) {
                 lastOverlayScrollY = scrollY
-                binding.overlay.clear(app.halum.overlay.OverlayView.ClearReason.SCROLL)
+                binding.overlay.clear(OverlayView.ClearReason.SCROLL)
             }
         }
         // Q2 level 3: long-press a translation to edit it. The overlay is not
@@ -175,11 +176,7 @@ class MainActivity : AppCompatActivity() {
             setProgress(0, getString(R.string.error_lens_unavailable))
             return
         }
-        val placements =
-            outcome.placements.map {
-                app.halum.overlay.OverlayView
-                    .Placement(it.box, it.text, it.isSmall)
-            }
+        val placements = outcome.placements.map { OverlayView.Placement(it.box, it.text, it.isSmall) }
         binding.overlay.show(placements, binding.mainWebView.scrollY)
         setProgress(100, getString(R.string.progress_panel, outcome.placements.size, outcome.bubbles))
         Log.i(TAG, "OVERLAY_PLACED: count=${placements.size}")
@@ -291,7 +288,7 @@ class MainActivity : AppCompatActivity() {
                     favicon: Bitmap?,
                 ) {
                     // D9: a new page is a new panel; the previous overlay is stale.
-                    binding.overlay.clear(app.halum.overlay.OverlayView.ClearReason.REPLACE)
+                    binding.overlay.clear(OverlayView.ClearReason.REPLACE)
                 }
             }
         // Q3: only the MAIN webview gets the blocker; the chat UI must not be.

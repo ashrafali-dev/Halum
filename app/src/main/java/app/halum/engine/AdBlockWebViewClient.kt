@@ -67,27 +67,36 @@ class AdBlockWebViewClient(
     /** Layers 2 + 3 with the panel-count safety net around layer 2. */
     private fun applyDomLayers(view: WebView) {
         // Record the panel count, inject CSS, then re-check after 2 s.
+        val cssJs =
+            "(function(){var s=document.createElement('style');" +
+                "s.id='halum-adblock';s.textContent=${quote(CSS_JOINED)};" +
+                "document.head.appendChild(s);return true;})();"
         view.evaluateJavascript(PANEL_COUNT_JS) { before ->
-            view.evaluateJavascript(
-                "(function(){var s=document.createElement('style');" +
-                    "s.id='halum-adblock';s.textContent=${quote(CSS_JOINED)};" +
-                    "document.head.appendChild(s);return true;})();",
-            ) { _ ->
+            view.evaluateJavascript(cssJs) { _ ->
                 Log.i(TAG, "ADBLOCK_CSS: injected rules=${CSS.size}")
             }
             view.postDelayed({
                 view.evaluateJavascript(PANEL_COUNT_JS) { after ->
-                    val beforeN = before.trim().toIntOrNull() ?: Int.MAX_VALUE
-                    val afterN = after.trim().toIntOrNull() ?: Int.MAX_VALUE
-                    if (afterN < beforeN) {
-                        rollback(view)
-                        Log.i(TAG, "ADBLOCK_ROLLBACK: reason=panel_count_dropped before=$beforeN after=$afterN")
-                    }
+                    checkPanels(view, before, after)
                 }
             }, PANEL_CHECK_DELAY_MS)
         }
         view.evaluateJavascript(SCRIPT_REMOVE_JS) { removed ->
             Log.i(TAG, "ADBLOCK_SCRIPT: removed=${removed.trim()}")
+        }
+    }
+
+    /** Q3 safety: undo the CSS if hiding ads took panels with it. */
+    private fun checkPanels(
+        view: WebView,
+        before: String,
+        after: String,
+    ) {
+        val beforeN = before.trim().toIntOrNull() ?: Int.MAX_VALUE
+        val afterN = after.trim().toIntOrNull() ?: Int.MAX_VALUE
+        if (afterN < beforeN) {
+            rollback(view)
+            Log.i(TAG, "ADBLOCK_ROLLBACK: reason=panel_count_dropped before=$beforeN after=$afterN")
         }
     }
 

@@ -3,6 +3,7 @@ package app.halum.engine
 import app.halum.core.LensProtocol
 import app.halum.core.OcrBlock
 import app.halum.core.lens.LensOcrClient
+import app.halum.core.lens.ReplayTransport
 
 /**
  * D5: builds a real Lens request for a captured panel and decodes the answer.
@@ -46,11 +47,6 @@ class LensPort(
         ): LensPort = LensPort(LensOcrClient(HttpTransport(cookies = cookies, storeCookies = store)))
 
         fun replay(fixtures: List<ByteArray>): LensPort =
-            LensPort(
-                LensOcrClient(
-                    app.halum.core.lens
-                        .ReplayTransport(fixtures),
-                ),
-            )
+            LensPort(LensOcrClient(ReplayTransport(fixtures)))
     }
 }

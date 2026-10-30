@@ -63,8 +63,5 @@ object PromptTemplate {
     }
 
     /** D22/D10: the spec text as the reset target, kept in one place. */
-    fun specDefault(): String =
-        "${
-            PromptBuilder.PREAMBLE
-        }\n\n{BLOCKS}"
+    fun specDefault(): String = "${PromptBuilder.PREAMBLE}\n\n{BLOCKS}"
 }
