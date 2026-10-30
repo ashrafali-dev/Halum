@@ -48,6 +48,22 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
+      - name: ONNX padding layout
+        run: |
+          python3 - <<'EOF'
+          import collections, onnx
+          m = onnx.load(".cache/models/work/bubble.onnx")
+          ops = collections.Counter(n.op_type for n in m.graph.node)
+          print("ONNX_OPS:", dict(ops))
+          for n in m.graph.node:
+              if n.op_type == "Pad":
+                  print("ONNX_PAD:", n.name, list(n.input))
+              if n.op_type == "Conv":
+                  a = {x.name: onnx.helper.get_attribute_value(x) for x in n.attribute}
+                  if a:
+                      print("ONNX_CONV_ATTR:", n.name, a)
+          EOF
+
       # The one check that exercises the artifact the APK actually ships.
       # Everything else here runs ONNX through onnxruntime and cannot see
       # interpreter-creation failures (see the docstring).
