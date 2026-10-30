@@ -1,7 +1,9 @@
 name: probe
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.probe-trigger']
 
 jobs:
   probe:
