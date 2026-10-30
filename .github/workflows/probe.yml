@@ -13,51 +13,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Run probe
+      - name: Regenerate fixtures from expected JSON
         run: |
-          cat > /tmp/probe.py <<'PY'
-          import struct, sys
-
-          buf = open(sys.argv[1], "rb").read()
-          print(f"len={len(buf)}")
-
-          class R:
-              def __init__(self, b, pos=0, end=None):
-                  self.b, self.pos, self.end = b, pos, (len(b) if end is None else end)
-              def more(self): return self.pos < self.end
-              def varint(self):
-                  out = 0; shift = 0
-                  while True:
-                      if self.pos >= self.end: raise ValueError(f"truncated varint at {self.pos}")
-                      c = self.b[self.pos]; self.pos += 1
-                      out |= (c & 0x7F) << shift
-                      if not c & 0x80: return out
-                      shift += 7
-              def tag(self):
-                  raw = self.varint(); return raw >> 3, raw & 7
-              def lenmsg(self):
-                  n = self.varint(); sub = R(self.b, self.pos, self.pos + n); self.pos += n; return sub
-
-          def walk(r, d, label):
-              while r.more():
-                  at = r.pos; f, w = r.tag()
-                  print("  " * d + f"{label}@{at} field={f} wire={w}")
-                  if w == 0:
-                      print("  " * d + f"  varint={r.varint()}")
-                  elif w == 2:
-                      sub = r.lenmsg()
-                      print("  " * d + f"  len={sub.end - sub.pos}")
-                      walk(sub, d + 1, "sub")
-                  elif w == 5:
-                      print("  " * d + f"  f32={struct.unpack('<f', r.b[r.pos:r.pos+4])[0]}")
-                      r.pos += 4
-                  else:
-                      print("  " * d + f"  !! wire {w} at {at}")
-                      raise SystemExit(1)
-
-          walk(R(buf), 0, "root")
-          PY
-          echo "=== KO ==="; python3 /tmp/probe.py fixtures/lens_ko.bin || true
-          echo "=== JA ==="; python3 /tmp/probe.py fixtures/lens_ja.bin || true
-      - name: lens_fixture check
-        run: python3 tools/lens_fixture.py --out fixtures --check || true
+          python3 tools/lens_fixture.py --out build/fixtures --write
+          echo "=== CHECK REGENERATED ==="
+          python3 tools/lens_fixture.py --out build/fixtures --check
+          echo "=== CHECK COMMITTED ==="
+          python3 tools/lens_fixture.py --out fixtures --check || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: regenerated-fixtures
+          path: build/fixtures

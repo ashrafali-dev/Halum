@@ -5,10 +5,10 @@ The committed fixtures are genuine protobuf `LensOverlayServerResponse` bytes
 produced by the official jspb bindings of rxliuli/chrome-lens-ocr (MIT); see
 fixtures/lens/README.md. This script:
 
-  --check (default): decode .bin -> blocks, compare to .expected.json and
-                     assert a decode -> encode round trip is byte-identical.
-  --write          : regenerate the .bin from .expected.json (only for a
-                     deliberate fixture change) and write .expected.json.
+  --check: decode .bin -> blocks, compare to .expected.json, then assert
+           decode(encode(decode(x))) == decode(x).
+  --write: regenerate the .bin from .expected.json (only for a deliberate
+           fixture change).
 
 It exists so CI can prove the repo's understanding of the wire layout without
 Node, jspb or network. If it and `app.halum.core.LensProtocol` disagree, one of
@@ -284,6 +284,25 @@ def encode_page(blocks: list[dict], lang: str, width: int, height: int) -> bytes
     return len_field(2, len_field(3, text))
 
 
+def write(json_path: str, bin_path: str) -> bool:
+    """Regenerate the .bin from .expected.json with our own encoder."""
+    with open(json_path) as f:
+        exp = json.load(f)
+    if not exp["blocks"]:
+        print(f"[lens_fixture] {json_path}: no blocks", file=sys.stderr)
+        return False
+    data = encode_page(
+        exp["blocks"],
+        exp["blocks"][0].get("script", ""),
+        exp["width"],
+        exp["height"],
+    )
+    with open(bin_path, "wb") as f:
+        f.write(data)
+    print(f"[lens_fixture] wrote {bin_path} ({len(data)} bytes)")
+    return True
+
+
 def check(bin_path: str, json_path: str) -> bool:
     with open(bin_path, "rb") as f:
         data = f.read()
@@ -312,20 +331,30 @@ def check(bin_path: str, json_path: str) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)
-    ap.add_argument("--check", action="store_true")
+    mode = ap.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--check", action="store_true", help="decode and verify (default)")
+    mode.add_argument("--write", action="store_true", help="regenerate .bin from .expected.json")
     args = ap.parse_args()
+    os.makedirs(args.out, exist_ok=True)
     ok = True
     for name in ("lens_ja", "lens_ko"):
         bin_path = os.path.join(args.out, f"{name}.bin")
         json_path = os.path.join(args.out, f"{name}.expected.json")
-        if not (os.path.exists(bin_path) and os.path.exists(json_path)):
-            print(f"[lens_fixture] missing {bin_path} or {json_path}", file=sys.stderr)
+        if not os.path.exists(json_path):
+            print(f"[lens_fixture] missing {json_path}", file=sys.stderr)
             ok = False
             continue
         try:
-            ok = check(bin_path, json_path) and ok
+            if args.write:
+                ok = write(json_path, bin_path) and ok
+            else:
+                if not os.path.exists(bin_path):
+                    print(f"[lens_fixture] missing {bin_path}", file=sys.stderr)
+                    ok = False
+                    continue
+                ok = check(bin_path, json_path) and ok
         except (ValueError, IndexError, KeyError) as exc:
-            print(f"[lens_fixture] {bin_path}: decode failed: {exc}", file=sys.stderr)
+            print(f"[lens_fixture] {bin_path}: failed: {exc}", file=sys.stderr)
             ok = False
     return 0 if ok else 1
 
