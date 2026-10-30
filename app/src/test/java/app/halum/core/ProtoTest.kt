@@ -40,11 +40,22 @@ class ProtoTest {
     @Test
     fun `nested messages are length delimited`() {
         val inner = Proto.Writer().writeString(1, "x").toByteArray()
-        val outer = Proto.Writer().writeMessage(7, inner).writeVarint(8, 9).toByteArray()
+        val outer =
+            Proto
+                .Writer()
+                .writeMessage(7, inner)
+                .writeVarint(8, 9)
+                .toByteArray()
         val r = Proto.Reader(outer)
         assertEquals(7, r.readTag() ushr 3)
         val sub = r.readLengthDelimited()
-        assertEquals("x", sub.let { s -> s.readTag(); s.readString() })
+        assertEquals(
+            "x",
+            sub.let { s ->
+                s.readTag()
+                s.readString()
+            },
+        )
         assertEquals(8, r.readTag() ushr 3)
         assertEquals(9L, r.readVarint())
     }
@@ -52,7 +63,8 @@ class ProtoTest {
     @Test
     fun `unknown fields of every wire type are skipped`() {
         val bytes =
-            Proto.Writer()
+            Proto
+                .Writer()
                 .writeVarint(1, 5)
                 .writeString(2, "skip")
                 .writeFloat(3, 1.5f)
