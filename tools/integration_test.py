@@ -31,6 +31,21 @@ ORDER_KEY = (   # stable detection order shared with the Kotlin side
 )
 
 
+def find_reference_onnx(start: str) -> str:
+    """Walk up until the repo root (identified by .cache/) and return the
+    reference ONNX path. Not a fixed number of `dirname`s: that silently
+    pointed at app/.cache the first time (run 40989289071)."""
+    cur = start
+    while cur and cur != os.path.dirname(cur):
+        candidate = os.path.join(cur, ".cache", "models", "work", "bubble.onnx")
+        if os.path.exists(candidate):
+            return candidate
+        if os.path.exists(os.path.join(cur, ".cache")):
+            return candidate  # right root, model missing
+        cur = os.path.dirname(cur)
+    return os.path.join(start, "bubble.onnx")
+
+
 def log(msg: str) -> None:
     print(f"[integration] {msg}", flush=True)
 
@@ -106,9 +121,7 @@ def run(fixtures: str, models: str, out: str) -> int:
     # the TFLite is what the app actually loads, so its presence is gated too.
     # layout: <root>/app/src/main/assets/models (tflite) and
     #         <root>/.cache/models/work (reference onnx)
-    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(models)))))
-    onnx_path = os.path.join(root, ".cache", "models", "work", "bubble.onnx")
+    onnx_path = find_reference_onnx(os.path.abspath(models))
     tflite_path = os.path.join(models, "bubble.tflite")
     if not os.path.exists(onnx_path):
         log(f"FAIL no reference ONNX at {onnx_path} (fetch_models.sh should leave it there)")
