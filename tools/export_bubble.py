@@ -97,64 +97,65 @@ def onnx_to_tflite(onnx_path: str, work_dir: str) -> str:
     return chosen
 
 
-def flatten_pad_pads(onnx_path: str, out_path: str) -> int:
-    """Rewrite every Pad's paddings initializer from [rank,2] to flat [2*rank].
+def conv_to_auto_pad(onnx_path: str, out_path: str) -> int:
+    """Turn Conv's explicit `pads` into `auto_pad`, so no PAD node is emitted.
 
-    Ultralytics' opset-18 export emits 2-D paddings. onnx2tf carries that shape
-    straight into the TFLite PAD op, and tensorflow-lite 2.16.1 (the version
-    the APK ships) refuses to prepare it:
+    The graph has no Pad node at all (100 Conv, no Pad). onnx2tf lowers each
+    Conv's `pads=[1,1,1,1]` attribute into a separate TFLite PAD op with a 2-D
+    paddings tensor, which the shipped tensorflow-lite 2.16.1 refuses:
 
       pad.cc:123 SizeOfDimension(op_context->paddings, 0) != op_context->dims
       (4 != 1)
 
-    ONNX accepts both layouts when `axes` is set, and TFLite only accepts the
-    flat one, so flattening here is lossless. Returns how many were rewritten.
+    Expressing the same padding as `auto_pad=SAME_UPPER` (or VALID when the
+    pads are zero) lets TFLite set CONV_2D's own padding field instead.
+
+    Only pads that SAME_UPPER/VALID reproduce exactly are converted: uniform
+    pads of (k-1)/2 for odd kernels, or all-zero. Anything else is left alone
+    and reported, never guessed at.
     """
-    import numpy as np
     import onnx
-    from onnx import numpy_helper
+    from onnx import helper
 
     model = onnx.load(onnx_path)
     graph = model.graph
 
-    inits = {i.name: i for i in graph.initializer}
-    # Supplies values without putting initializers in the graph repeatedly.
-    changed = 0
+    converted = 0
+    skipped = []
     for node in graph.node:
-        if node.op_type != "Pad" or len(node.input) < 2:
+        if node.op_type != "Conv":
             continue
-        pads_name = node.input[1]
-        init = inits.get(pads_name)
-        if init is None:
-            continue  # dynamic pads: cannot reshape a computed tensor here
-        arr = numpy_helper.to_array(init)
-        if arr.ndim != 2:
+        attr = {a.name: helper.get_attribute_value(a) for a in node.attribute}
+        pads = attr.get("pads")
+        if pads is None or "auto_pad" in attr:
             continue
-        rank = arr.shape[0]
-        flat = np.ascontiguousarray(arr.reshape(-1).astype(arr.dtype))
-        new_init = numpy_helper.from_array(flat, name=pads_name + "__flat")
-        graph.initializer.append(new_init)
-        node.input[1] = pads_name + "__flat"
+        kernel = attr.get("kernel_shape")
+        if kernel is None or len(kernel) != 2 or len(pads) != 4:
+            skipped.append((node.name, "unexpected shape"))
+            continue
+        top, left, bottom, right = (int(p) for p in pads)
+        if top == bottom == left == right == 0:
+            mode = b"VALID"
+        else:
+            kh, kw = int(kernel[0]), int(kernel[1])
+            if top != bottom or left != right or top != (kh - 1) // 2 or left != (kw - 1) // 2:
+                skipped.append((node.name, f"asymmetric pads {pads} kernel {kernel}"))
+                continue
+            if kh % 2 == 0 or kw % 2 == 0:
+                skipped.append((node.name, f"even kernel {kernel}"))
+                continue
+            mode = b"SAME_UPPER"
 
-        # Without `axes`, Pad applies paddings to the leading dims, which is
-        # different semantics once flattened. Pin them explicitly.
-        if len(node.input) < 4 or not node.input[3]:
-            axes = np.arange(rank, dtype=np.int64)
-            axes_name = pads_name + "__axes"
-            graph.initializer.append(numpy_helper.from_array(axes, name=axes_name))
-            while len(node.input) < 4:
-                node.input.append("")
-            node.input[3] = axes_name
-        changed += 1
+        node.attribute.remove(next(a for a in node.attribute if a.name == "pads"))
+        node.attribute.append(helper.make_attribute("auto_pad", mode))
+        converted += 1
 
-    # Drop initializers nobody references any more (the 2-D originals).
-    used = {i for n in graph.node for i in n.input if i}
-    keep = [i for i in graph.initializer if i.name in used]
-    del graph.initializer[:]
-    graph.initializer.extend(keep)
+    if skipped:
+        for name, why in skipped[:10]:
+            print(f"[export_bubble] conv left as-is: {name}: {why}")
 
     onnx.save(model, out_path)
-    return changed
+    return converted
 
 
 def main() -> int:
@@ -173,9 +174,9 @@ def main() -> int:
         onnx_path = yolo_to_onnx(args.pt, args.work)
 
     # Conversion input only; integration_test.py keeps using the original ONNX.
-    flat_path = os.path.join(args.work, "bubble_flatpads.onnx")
-    rewritten = flatten_pad_pads(onnx_path, flat_path)
-    print(f"[export_bubble] flattened paddings on {rewritten} Pad nodes -> {flat_path}")
+    flat_path = os.path.join(args.work, "bubble_autopad.onnx")
+    rewritten = conv_to_auto_pad(onnx_path, flat_path)
+    print(f"[export_bubble] auto_pad on {rewritten} Conv nodes -> {flat_path}")
 
     tflite = onnx_to_tflite(flat_path, args.work)
     dest = os.path.join(args.out, "bubble.tflite")
