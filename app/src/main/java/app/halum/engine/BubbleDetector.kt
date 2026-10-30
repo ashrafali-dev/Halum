@@ -6,8 +6,8 @@ import app.halum.model.ModelStore
 import app.halum.model.Models
 import app.halum.util.Log
 import org.tensorflow.lite.Interpreter
-import java.io.FileInputStream
 import java.io.Closeable
+import java.io.FileInputStream
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 
@@ -74,10 +74,11 @@ class BubbleDetector private constructor(
     companion object {
         /** Null when this build shipped no bubble model. */
         fun create(store: ModelStore): BubbleDetector? {
-            val model = store.obtain(Models.BUBBLE) ?: run {
-                Log.w(TAG, "bubble.tflite missing; detection disabled")
-                return null
-            }
+            val model =
+                store.obtain(Models.BUBBLE) ?: run {
+                    Log.w(TAG, "bubble.tflite missing; detection disabled")
+                    return null
+                }
             val options =
                 Interpreter.Options().apply {
                     setNumThreads(if (Runtime.getRuntime().availableProcessors() >= 4) 4 else 2)

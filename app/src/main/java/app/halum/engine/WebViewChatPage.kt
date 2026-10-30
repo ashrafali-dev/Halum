@@ -38,7 +38,9 @@ class WebViewChatPage(
     }
 
     private val pending = java.util.concurrent.ConcurrentHashMap<Int, (String?) -> Unit>()
-    private val nextId = java.util.concurrent.atomic.AtomicInteger(0)
+    private val nextId =
+        java.util.concurrent.atomic
+            .AtomicInteger(0)
 
     init {
         webView.settings.javaScriptEnabled = true

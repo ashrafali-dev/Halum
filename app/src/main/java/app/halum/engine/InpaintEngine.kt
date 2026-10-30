@@ -7,11 +7,8 @@ import app.halum.model.ModelStore
 import app.halum.model.Models
 import app.halum.util.Log
 import org.opencv.android.Utils
-import org.opencv.core.Core
 import org.opencv.core.CvType
 import org.opencv.core.Mat
-import org.opencv.core.Size
-import org.opencv.imgproc.Imgproc
 import org.opencv.photo.Photo
 import java.io.Closeable
 
@@ -139,7 +136,9 @@ class InpaintEngine private constructor(
             if (openCvLoaded) return
             synchronized(this) {
                 if (openCvLoaded) return
-                if (!org.opencv.android.OpenCVLoader.initLocal()) {
+                if (!org.opencv.android.OpenCVLoader
+                        .initLocal()
+                ) {
                     Log.e(TAG, "OpenCV init failed; inpaint disabled")
                     throw IllegalStateException("OpenCV unavailable")
                 }
@@ -234,7 +233,8 @@ class MiGan private constructor(
                         setNumThreads(2)
                     }
                 val mapped =
-                    java.io.FileInputStream(model.file)
+                    java.io
+                        .FileInputStream(model.file)
                         .channel
                         .map(java.nio.channels.FileChannel.MapMode.READ_ONLY, 0, model.file.length())
                 MiGan(org.tensorflow.lite.Interpreter(mapped, options))

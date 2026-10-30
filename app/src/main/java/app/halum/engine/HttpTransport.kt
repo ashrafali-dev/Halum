@@ -43,7 +43,11 @@ class HttpTransport(
                 if (values.isNotEmpty()) storeCookies(values.joinToString("; ") { it.substringBefore(';') })
             }
             if (status !in 200..299) {
-                val detail = conn.errorStream?.bufferedReader()?.use { it.readText().take(300) }.orEmpty()
+                val detail =
+                    conn.errorStream
+                        ?.bufferedReader()
+                        ?.use { it.readText().take(300) }
+                        .orEmpty()
                 Log.e(TAG, "LENS_OCR: http $status $detail")
                 throw LensTransport.TransportException("lens http $status", status)
             }

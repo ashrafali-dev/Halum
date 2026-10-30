@@ -5,13 +5,18 @@ import java.io.File
 import java.io.InputStream
 
 /** [ModelStore.Source] over `assets/models/` + the Gradle-generated manifest. */
-class AssetSource(private val context: Context) : ModelStore.Source {
-    override fun open(assetPath: String): InputStream? =
-        runCatching { context.assets.open(assetPath) }.getOrNull()
+class AssetSource(
+    private val context: Context,
+) : ModelStore.Source {
+    override fun open(assetPath: String): InputStream? = runCatching { context.assets.open(assetPath) }.getOrNull()
 
     override fun readManifest(): String? =
-        runCatching { context.assets.open(MANIFEST).bufferedReader().use { it.readText() } }
-            .getOrNull()
+        runCatching {
+            context.assets
+                .open(MANIFEST)
+                .bufferedReader()
+                .use { it.readText() }
+        }.getOrNull()
 
     private companion object {
         // Written by `modelsManifest` in app/build.gradle.kts.
@@ -20,7 +25,9 @@ class AssetSource(private val context: Context) : ModelStore.Source {
 }
 
 /** [ModelStore.Cache] in `filesDir/models/`, one directory per manifest hash. */
-class FileCache(private val root: File) : ModelStore.Cache {
+class FileCache(
+    private val root: File,
+) : ModelStore.Cache {
     override fun file(name: String): File = File(root, name)
 }
 

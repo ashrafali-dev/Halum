@@ -139,7 +139,10 @@ class SegDecoderTest {
 
         // A positive prototype inside the box must produce mask pixels.
         val hot = FloatArray(zeroProto.size)
-        for (c in 0 until SegDecoder.SEG_DIM) hot[c * SegDecoder.PROTO * SegDecoder.PROTO + 80 * SegDecoder.PROTO + 80] = 1f
+        for (c in 0 until SegDecoder.SEG_DIM) {
+            hot[c * SegDecoder.PROTO * SegDecoder.PROTO + 80 * SegDecoder.PROTO + 80] =
+                1f
+        }
         val filled = SegDecoder.maskFor(det, hot, 640, 640, letterbox)
         assertTrue("mask should have pixels, got ${filled.areaPx}", filled.areaPx > 0)
         assertEquals(640 * 640, filled.mask.size)
