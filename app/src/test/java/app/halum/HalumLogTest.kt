@@ -14,13 +14,16 @@ class HalumLogTest {
     private val previous = Log.sink
 
     /** Stands in for logcat: android.util.Log is stubbed to throw on the JVM. */
+    private val mirrored = mutableListOf<String>()
     private val noopSink =
         object : Log.Sink {
             override fun write(
                 priority: Int,
                 tag: String,
                 message: String,
-            ) {}
+            ) {
+                mirrored += "$priority|$tag|$message"
+            }
         }
 
     @Before
@@ -62,20 +65,8 @@ class HalumLogTest {
 
     @Test
     fun `install chains to the previous sink instead of replacing it`() {
-        val seen = mutableListOf<String>()
-        val logcat =
-            object : Log.Sink {
-                override fun write(
-                    priority: Int,
-                    tag: String,
-                    message: String,
-                ) {
-                    seen += "$priority|$tag|$message"
-                }
-            }
-        HalumLog.install(logcat)
         Log.i("BUBBLE", "detected=7")
-        assertEquals(listOf("4|BUBBLE|detected=7"), seen)
+        assertEquals(listOf("4|BUBBLE|detected=7"), mirrored)
         assertTrue(HalumLog.dump().contains("BUBBLE: detected=7"))
     }
 
