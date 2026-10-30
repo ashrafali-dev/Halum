@@ -27,6 +27,9 @@ import urllib.error
 SAMPLE_BASE = "https://raw.githubusercontent.com/zbu1/manga-translator-cli/main/docs"
 RECALL_MIN = 0.80
 IOU_MIN = 0.50      # a detection matches a reference box at >= this IoU
+# D11 isSmall, kept in sync with BubbleClassifier.kt
+SMALL_WIDTH_PX = 60.0
+SMALL_AREA_PX = 4000.0
 ORDER_KEY = (   # stable detection order shared with the Kotlin side
     "score", "x1", "y1", "x2", "y2",
 )
@@ -63,6 +66,17 @@ def fetch(url: str, dest: str) -> bool:
         return False
 
 
+def letterbox(w: int, h: int, size: int = 640):
+    """(scale, pad_x, pad_y, resized_w, resized_h).
+
+    Must stay identical to SegDecoder.Letterbox.of in Kotlin: the recall check
+    and the app's boxes have to describe the same rectangles.
+    """
+    scale = min(size / w, size / h)
+    rw, rh = round(w * scale), round(h * scale)
+    return scale, (size - rw) // 2, (size - rh) // 2, rw, rh
+
+
 def iou(a, b) -> float:
     ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
     ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
@@ -87,10 +101,8 @@ def load_detector(onnx_path: str, imgsz: int = 640):
     def boxes(path: str):
         img = Image.open(path).convert("RGB")
         w, h = img.size
-        scale = min(imgsz / w, imgsz / h)
-        rw, rh = round(w * scale), round(h * scale)
+        scale, pad_x, pad_y, rw, rh = letterbox(w, h, imgsz)
         canvas = np.full((imgsz, imgsz, 3), 114, dtype=np.uint8)
-        pad_x, pad_y = (imgsz - rw) // 2, (imgsz - rh) // 2
         canvas[pad_y:pad_y + rh, pad_x:pad_x + rw] = np.asarray(
             img.resize((rw, rh)), dtype=np.uint8)
         x = canvas[:, :, ::-1].transpose(2, 0, 1)[None].astype(np.float32) / 255.0
@@ -161,6 +173,14 @@ def run(fixtures: str, models: str, out: str) -> int:
             continue
         dets = boxes_of(path)
         ref_out["pages"][name] = dets
+        small = [
+            [round(b[0], 1), round(b[1], 1), round(b[2], 1), round(b[3], 1)]
+            for b in dets
+            if (b[2] - b[0]) < SMALL_WIDTH_PX or (b[2] - b[0]) * (b[3] - b[1]) < SMALL_AREA_PX
+        ]
+        log(f"{name}: {len(dets)} bubbles, {len(small)} small (< {SMALL_WIDTH_PX:g} px)")
+        if small:
+            ref_out.setdefault("small", {})[name] = small
         expected = page.get("expected") or []
         if not expected:
             log(f"{name}: detected {len(dets)} bubbles (no reference count; AC3 not asserted)")
