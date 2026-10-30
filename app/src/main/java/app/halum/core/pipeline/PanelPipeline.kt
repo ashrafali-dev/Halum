@@ -65,6 +65,11 @@ class PanelPipeline(
         val ocrBlocks: Int,
         val translated: Int,
         val totalMs: Long,
+        /**
+         * Bubble boxes whose text was not translated, with the source text, so
+         * the chapter pass (ScanChapterRunner) can retry them with context.
+         */
+        val untranslated: List<Placement> = emptyList(),
     )
 
     /**
@@ -101,17 +106,25 @@ class PanelPipeline(
         val byIndex = HashMap<Int, String?>()
         translatable.forEachIndexed { k, bubbleIndex -> byIndex[bubbleIndex] = translations.getOrNull(k) }
 
-        val placements =
-            grouped.mapIndexedNotNull { i, b ->
-                val text = byIndex[i]?.takeIf { it.isNotBlank() } ?: return@mapIndexedNotNull null
-                Placement(b.box, text, b.isSmall)
+        val placements = mutableListOf<Placement>()
+        val untranslated = mutableListOf<Placement>()
+        grouped.forEachIndexed { i, b ->
+            val text = byIndex[i]?.takeIf { it.isNotBlank() }
+            if (text != null) {
+                placements += Placement(b.box, text, b.isSmall)
+            } else if (perBubbleText[i].isNotEmpty()) {
+                // Source text exists but the chatbot gave nothing: keep it so a
+                // chapter pass can retry with context.
+                untranslated += Placement(b.box, perBubbleText[i], b.isSmall)
             }
+        }
         return PanelResult(
             placements = placements,
             bubbles = detected.size,
             ocrBlocks = ocr.size,
             translated = placements.size,
             totalMs = clock() - started,
+            untranslated = untranslated,
         )
     }
 
