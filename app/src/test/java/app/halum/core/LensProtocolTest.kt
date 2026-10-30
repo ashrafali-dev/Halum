@@ -6,7 +6,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
-import kotlin.math.abs
 
 /**
  * AC2: replay the committed Lens protobuf fixtures through the real decoder.
@@ -17,7 +16,9 @@ import kotlin.math.abs
 class LensProtocolTest {
     private fun fixture(name: String): ByteArray = File(fixturesDir, name).readBytes()
 
-    private fun expected(name: String): JSONObject = JSONObject(File(fixturesDir, name).readText())
+    // org.json:json is a unit-test dependency; android.jar's copy throws.
+    private fun expected(name: String): JSONObject =
+        JSONObject(File(fixturesDir, name).readText())
 
     private val fixturesDir: File
         get() {
@@ -39,8 +40,12 @@ class LensProtocolTest {
             assertTrue("$name[$i] text not empty", blocks[i].text.isNotEmpty())
             val box = w.getJSONArray("bbox")
             for (k in 0 until 4) {
-                val delta = abs(box.getDouble(k).toFloat() - blocks[i].bbox[k])
-                assertTrue("$name[$i].bbox[$k] delta=$delta", delta <= 0.01f)
+                assertEquals(
+                    "$name[$i].bbox[$k]",
+                    box.getDouble(k).toFloat(),
+                    blocks[i].bbox[k],
+                    0.01f,
+                )
             }
         }
     }
@@ -125,8 +130,7 @@ class LensProtocolTest {
     fun `unknown fields do not break decoding`() {
         val jspb = fixture("lens_ko.bin")
         val padded =
-            Proto
-                .Writer()
+            Proto.Writer()
                 .writeMessage(2, jspb)
                 .writeString(5, "future-field")
                 .writeVarint(9, 3)
