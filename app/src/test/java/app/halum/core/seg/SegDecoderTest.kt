@@ -150,6 +150,38 @@ class SegDecoderTest {
     }
 
     @Test
+    fun `NHWC prototype output is read in channel-last order`() {
+        val coeffs = FloatArray(SegDecoder.SEG_DIM)
+        coeffs[1] = 1f
+        val detection =
+            SegDecoder.Detection(
+                x1 = 4f,
+                y1 = 0f,
+                x2 = 5f,
+                y2 = 1f,
+                score = 1f,
+                coeffs = coeffs,
+            )
+        val proto = FloatArray(SegDecoder.SEG_DIM * SegDecoder.PROTO * SegDecoder.PROTO)
+        // Page pixel x=4 maps to prototype cell 1. Set channel 1 in NHWC order.
+        proto[1 * SegDecoder.SEG_DIM + 1] = 1f
+        val letterbox = SegDecoder.Letterbox(1f, 0, 0, 8, 1)
+
+        val result =
+            SegDecoder.maskFor(
+                detection,
+                proto,
+                pageWidth = 8,
+                pageHeight = 1,
+                letterbox = letterbox,
+                protoChannelsLast = true,
+            )
+
+        assertEquals(1, result.areaPx)
+        assertEquals(1.toByte(), result.mask[4])
+    }
+
+    @Test
     fun `mask is empty outside the letterboxed page`() {
         val out = blankOutput()
         put(out, 0, 320f, 320f, 100f, 100f, score = 0.9f, coeff = 4f)
