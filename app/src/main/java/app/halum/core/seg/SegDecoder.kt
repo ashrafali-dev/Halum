@@ -12,7 +12,7 @@ import kotlin.math.roundToInt
  *
  * Model contract (measured in MODELS.md):
  *   detections  (1, 37, 8400) float32 — cx, cy, w, h, 1 class score, 32 coeffs
- *   mask proto  (1, 32, 160, 160) float32
+ *   mask proto  (1, 32, 160, 160) in ONNX or (1, 160, 160, 32) in NHWC TFLite exports
  * Coordinates are in the 640×640 letterboxed space; [Letterbox] maps back.
  */
 object SegDecoder {
@@ -139,8 +139,8 @@ object SegDecoder {
     }
 
     /**
-     * Prototype → page mask. `proto` is (32, 160, 160) channel-major, cropped
-     * to the letterboxed square and scaled back to page pixels.
+     * Prototype → page mask. `proto` may be channel-first (32, 160, 160) or
+     * channel-last (160, 160, 32), depending on the TFLite export.
      *
      * Returns a page-sized binary mask (1 = bubble) and its pixel area.
      */
