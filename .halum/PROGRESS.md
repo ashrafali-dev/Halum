@@ -3,12 +3,12 @@
 > **Read this first.** It is the single source of truth for resuming.
 > Update it before every session ends and on every milestone commit.
 
-**Last updated:** 2026-10-31 (session 6 — TFLite tensor-rank fix)
+**Last updated:** 2026-10-31 (session 7 — chat bridge callback fix)
 **Branch:** `fix/tflite-rank-preserving-buffers-20261031` (work in progress)
-**Current phase:** Bubble inference bug traced to a flat `FloatArray`
-implicitly resizing TFLite's 4-D input to rank 1. Input/output now use
-`FloatBuffer`; NHWC prototype layout is handled. The invalid ONNX `auto_pad`
-rewrite was removed. CI and device validation pending.
+**Current phase:** The device log confirms bubble inference now runs (3 scored).
+The next failure is the late `addJavascriptInterface()`: Android does not
+expose it until a page reload. The Kotlin bridge now uses
+`evaluateJavascript()`'s `ValueCallback`. CI and device retest pending.
 
 ## Snapshot
 
@@ -71,11 +71,14 @@ is the real test. If it still dies, the Copy log button now gives the trace.
 
 ## What is broken / blocked
 
-1. **Bubble inference fix is under validation.** The device's `4 != 1` PAD
-   error came from a flat Java `FloatArray` implicitly resizing the model
-   input. The fix uses `FloatBuffer` and recognises NHWC mask prototypes;
-   CI/device confirmation is pending.
-2. **Other engines are wired but the path is unproven.** Translate now runs Lens →
+1. **Chat bridge callback fix is under validation.** The device log shows
+   `js timeout` on the readiness probe, `BRIDGE: TIMED_OUT attempts=0`, and
+   zero translations. The late `addJavascriptInterface()` registration was
+   the cause; results now use `evaluateJavascript()`'s `ValueCallback`.
+2. **Bubble inference has passed its first device smoke check.** The same log
+   shows input `[1,640,640,3]`, `protoLayout=NHWC`, and `BUBBLES: 3 scored`;
+   the previous PAD rank mismatch did not recur.
+3. **Other engines are wired but the path is unproven.** Translate now runs Lens →
    bubble detect → bridge → overlay off the UI thread, and Start/Stop exists.
    `InpaintEngine` is still never called (text is drawn over the original
    art), and Scan is a single visible panel, not the `ScanChapterRunner`
