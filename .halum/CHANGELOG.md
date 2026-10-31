@@ -3,6 +3,22 @@
 Session-by-session log. Newest first. Each entry: date, what changed,
 what CI said.
 
+## 2026-10-31 — session 6: TFLite PAD input-rank fix (validation pending)
+
+- Device log `4 != 1` was traced to `BubbleDetector.detect()` passing a flat
+  `FloatArray` to TFLite. The Java API implicitly resizes array inputs to
+  their array shape, turning `[1,640,640,3]` into rank 1.
+- Input and output payloads now use `FloatBuffer.wrap()`, which preserves
+  the model's declared tensor shapes without allocating nested arrays.
+- Added startup checks for input and detection output shapes. The TFLite
+  prototype layout is read from its output shape; NHWC proto output is now
+  indexed correctly by `SegDecoder`.
+- Reverted the `auto_pad` ONNX rewrite because CI proved it changed
+  predictions (max absolute output difference 324.538).
+- Corrected the TFLite PAD checker: builtin TFLite PAD requires
+  `[input_rank,2]`, not a flattened rank-1 paddings tensor.
+- CI and device validation pending on this branch.
+
 ## 2026-10-30 — session 5: first device run, crash fixed
 
 The user installed the APK. Tapping **Translate panel** killed the app before
