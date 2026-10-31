@@ -75,8 +75,25 @@ Format: `[OPEN|FIXING|FIXED] short title` — symptom, root cause, fix, run id.
   324.538, so that rewrite changed model predictions and must not ship.
 - Corrected the TFLite checker: builtin PAD requires `[input_rank,2]`; the
   previous checker incorrectly expected a flattened rank-1 paddings tensor.
-- Status: code committed to the fix branch; CI and device confirmation pending.
+- Device confirmation: the 2026-10-31 log shows the model loaded with
+  input `[1,640,640,3]` and `BUBBLES: 3 scored`; the former first-inference PAD
+  crash is no longer present. Mask quality and the full translation path are
+  not covered by this detector-only evidence.
+- Status: inference fix appears confirmed on-device; current branch CI is
+  running after the additional chat-bridge correction.
 
+### [FIXING] WebView chat callbacks time out before any prompt is sent
+- Session 7 device log: `js timeout: !!(window.halum && window.halum.ready())`
+  repeats for ~30 seconds, ending with `BRIDGE: state=TIMED_OUT attempts=0`,
+  `translated=0`, and `placed=0`.
+- Root cause: `WebViewChatPage` is constructed lazily after `chatgpt.com` has
+  already loaded, then calls `addJavascriptInterface()`. Android does not
+  expose a newly added JS interface until the next page load. The injected
+  `HalumBridge.onResult()` call therefore cannot reach Kotlin.
+- Fix in the same branch: remove the JS interface and receive evaluation
+  results through `WebView.evaluateJavascript()`'s `ValueCallback`; this
+  works with the already-loaded page and removes the callback ID map.
+- Status: code committed; CI and a fresh device run are pending.
 
 ### [OPEN] InpaintEngine is never called
 - `OverlayView` draws translated text straight over the original artwork;
