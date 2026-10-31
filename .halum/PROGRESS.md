@@ -3,12 +3,12 @@
 > **Read this first.** It is the single source of truth for resuming.
 > Update it before every session ends and on every milestone commit.
 
-**Last updated:** 2026-10-30 (session 5)
-**Branch:** `main`
-**Current phase:** D19 Steps 1-4 written and green in CI (`ddb36a7`):
-build+lint+integration+format pass. Q1 (bridge adapters), Q2 (editable
-prompts), Q3 (3-layer ad block) implemented. Next: on-device sanity,
-memory-test.yml, `v0.1.0`.
+**Last updated:** 2026-10-31 (session 6 — TFLite tensor-rank fix)
+**Branch:** `fix/tflite-rank-preserving-buffers-20261031` (work in progress)
+**Current phase:** Bubble inference bug traced to a flat `FloatArray`
+implicitly resizing TFLite's 4-D input to rank 1. Input/output now use
+`FloatBuffer`; NHWC prototype layout is handled. The invalid ONNX `auto_pad`
+rewrite was removed. CI and device validation pending.
 
 ## Snapshot
 
@@ -21,7 +21,7 @@ memory-test.yml, `v0.1.0`.
 | CI `lint.yml` + `format.yml` | **green** — ktlint *and* detekt clean since `d9a03b0` |
 | CI `integration-test.yml` | **green** (41008957375) — Lens replay + core tests |
 | CI `memory-test.yml` | never observed to run/pass |
-| Bubble export (`tools/export_bubble.py`) | **works**: onnx2tf 2.6.9 → float16 |
+| Bubble export (`tools/export_bubble.py`) | onnx2tf 2.6.9 → float32, original ONNX padding preserved |
 | Bubble reference detector + AC3 boxes (`fixtures/pages.json`) | 36 boxes, 4 pages |
 | MI-GAN export (`tools/export_migan.py`) | written, never run in CI (needs `MIGAN_ONNX_URL`) |
 | Core Kotlin (pure JVM: lens/split/placement/bridge) | not started |
@@ -71,20 +71,24 @@ is the real test. If it still dies, the Copy log button now gives the trace.
 
 ## What is broken / blocked
 
-1. **Engines are wired but the path is unproven.** Translate now runs Lens →
+1. **Bubble inference fix is under validation.** The device's `4 != 1` PAD
+   error came from a flat Java `FloatArray` implicitly resizing the model
+   input. The fix uses `FloatBuffer` and recognises NHWC mask prototypes;
+   CI/device confirmation is pending.
+2. **Other engines are wired but the path is unproven.** Translate now runs Lens →
    bubble detect → bridge → overlay off the UI thread, and Start/Stop exists.
    `InpaintEngine` is still never called (text is drawn over the original
    art), and Scan is a single visible panel, not the `ScanChapterRunner`
    chapter pass.
-2. **AC3 references are self-generated** (same model). Locks regressions,
+3. **AC3 references are self-generated** (same model). Locks regressions,
    is not independent ground truth — see BUGS.md.
-3. MI-GAN now has documented download URLs in `fetch_models.sh`; whether the
+4. MI-GAN now has documented download URLs in `fetch_models.sh`; whether the
    export succeeds in CI is unverified until the next integration run.
-4. `memory-test.yml` has never been exercised.
-5. AC2 is self-referential: the `.bin` fixtures were built by our own
+5. `memory-test.yml` has never been exercised.
+6. AC2 is self-referential: the `.bin` fixtures were built by our own
    encoder from the same proto reading as the decoder. A live capture (D2)
    is needed before AC2 means anything.
-6. **No Python locally** (Termux) and no android-35 SDK, so `engine_verify.py`
+7. **No Python locally** (Termux) and no android-35 SDK, so `engine_verify.py`
    and the Kotlin changes can only be validated by CI (D20).
 
 ## What is next (exact order, D19)
