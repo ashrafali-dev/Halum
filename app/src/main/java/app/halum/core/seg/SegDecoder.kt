@@ -181,13 +181,7 @@ object SegDecoder {
                 val cell = rowBase + nx
                 var acc = 0f
                 for (c in 0 until SEG_DIM) {
-                    val protoIndex =
-                        if (protoChannelsLast) {
-                            cell * SEG_DIM + c
-                        } else {
-                            c * PROTO * PROTO + cell
-                        }
-                    acc += det.coeffs[c] * proto[protoIndex]
+                    acc += det.coeffs[c] * proto[prototypeIndex(c, cell, protoChannelsLast)]
                 }
                 if (sigmoid(acc) >= threshold) {
                     out[py * pageWidth + px] = 1
@@ -197,6 +191,9 @@ object SegDecoder {
         }
         return MaskResult(out, pageWidth, pageHeight, filled)
     }
+
+    private fun prototypeIndex(channel: Int, cell: Int, channelsLast: Boolean): Int =
+        if (channelsLast) cell * SEG_DIM + channel else channel * PROTO * PROTO + cell
 
     fun sigmoid(v: Float): Float = (1.0 / (1.0 + exp(-v.toDouble()))).toFloat()
 }
