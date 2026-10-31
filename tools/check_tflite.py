@@ -70,12 +70,15 @@ def dump_node(interp, index: int) -> None:
             pass
 
 
-def paddings_not_rank1(interp) -> list[str]:
-    """PAD ops whose paddings tensor is not a rank-1 tensor of length 2*rank.
+def invalid_pad_shapes(interp) -> list[str]:
+    """Find PAD tensors that violate TFLite's [input_rank, 2] shape.
 
-    tensorflow-lite 2.16.1 asserts `SizeOfDimension(paddings, 0) == dims`
-    (pad.cc:123) and refuses to prepare the graph. Newer LiteRT releases relax
-    this, so a model that allocates in CI can still be dead on the device.
+    TFLite's pad.cc sets dims = NumDimensions(input), then checks:
+      SizeOfDimension(paddings, 0) == dims
+      SizeOfDimension(paddings, 1) == 2
+
+    A flattened [2*rank] tensor is an ONNX convention, not the builtin
+    TFLite PAD contract. [4,2] is correct when the padded input is rank 4.
     """
     findings = []
     details = {d["index"]: d for d in interp.get_tensor_details()}
@@ -90,17 +93,17 @@ def paddings_not_rank1(interp) -> list[str]:
             continue
         pads = details.get(int(op["inputs"][1]))
         data = details.get(int(op["inputs"][0]))
-        if pads is None:
+        if pads is None or data is None:
             continue
         shape = pads["shape"].tolist()
-        rank = len(data["shape"]) if data is not None else 0
-        if len(shape) != 1 or (rank and shape[0] != 2 * rank):
-            # The next op usually says what this pad belongs to (ONNX Conv and
-            # MaxPool lower to an explicit PAD + the op itself).
+        data_shape = data["shape"].tolist()
+        rank = len(data_shape)
+        if shape != [rank, 2]:
             nxt = ops[i + 1]["op_name"] if i + 1 < len(ops) else "end"
             prev = ops[i - 1]["op_name"] if i > 0 else "start"
             findings.append(
-                f"node{i}:{op['op_name']} pads_shape={shape} data_rank={rank} "
+                f"node{i}:{op['op_name']} pads_shape={shape} "
+                f"expected={[rank, 2]} data_shape={data_shape} "
                 f"prev={prev} next={nxt}"
             )
     return findings
@@ -135,22 +138,40 @@ def main() -> int:
     if dtype != "float32":
         print(f"CHECK_TFLITE: path={path} input_dtype={dtype} expected=float32")
         return 1
+    expected_input_shape = [1, 640, 640, 3]
+    if inp["shape"].tolist() != expected_input_shape:
+        print(
+            f"CHECK_TFLITE: path={path} input_shape={inp['shape'].tolist()} "
+            f"expected={expected_input_shape}"
+        )
+        return 1
     if len(outs) != 2:
         print(f"CHECK_TFLITE: path={path} outputs={len(outs)} expected=2")
         return 1
 
-    # The Android runtime is pinned at tensorflow-lite 2.16.1, which rejects a
-    # PAD whose paddings tensor is not rank-1. Newer interpreters (the one this
-    # script runs on) accept it silently, so allocation success here is not
-    # sufficient — check the shape the device will choke on.
-    bad = paddings_not_rank1(interp)
+    expected_detection_shape = [1, 37, 8400]
+    if outs[0]["shape"].tolist() != expected_detection_shape:
+        print(
+            f"CHECK_TFLITE: path={path} detection_shape={outs[0]['shape'].tolist()} "
+            f"expected={expected_detection_shape}"
+        )
+        return 1
+    proto_shape = outs[1]["shape"].tolist()
+    if proto_shape not in ([1, 32, 160, 160], [1, 160, 160, 32]):
+        print(f"CHECK_TFLITE: path={path} unsupported_proto_shape={proto_shape}")
+        return 1
+
+    # The Android app uses tensorflow-lite 2.16.1. Validate builtin PAD's
+    # exact [input_rank,2] contract, independently of converter-version quirks.
+    bad = invalid_pad_shapes(interp)
     if bad:
-        print(f"CHECK_TFLITE: path={path} paddings_rank1=false offending={bad}")
+        print(f"CHECK_TFLITE: path={path} pad_shape_contract=false offending={bad}")
         return 1
 
     print(
         f"CHECK_TFLITE: path={path} allocate=true input_shape={inp['shape'].tolist()} "
-        f"input_dtype={dtype} outputs={[o['shape'].tolist() for o in outs]}"
+        f"input_dtype={dtype} outputs={[o['shape'].tolist() for o in outs]} "
+        f"proto_layout={'NHWC' if proto_shape == [1, 160, 160, 32] else 'NCHW'}"
     )
     return 0
 
