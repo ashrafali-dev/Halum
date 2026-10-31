@@ -1,5 +1,20 @@
 # Halum — Changelog
 
+## 2026-10-31 — session 7: chat WebView callback fix (validation pending)
+
+- Device log confirms the TFLite shape fix now gets through inference:
+  `BubbleDetector` loads with `[1,640,640,3]` / `NHWC`, then reports
+  `BUBBLES: 3 scored`. The old PAD `4 != 1` crash is absent in this run.
+- The remaining failure is after OCR: `WebViewChatPage` times out checking
+  `window.halum.ready()`, `BRIDGE` returns `TIMED_OUT attempts=0`, and no
+  translations or overlays are produced.
+- Root cause: `addJavascriptInterface()` was registered after the existing
+  ChatGPT page had loaded; Android exposes that interface only after the next
+  page load. The JS callback could not call back into Kotlin.
+- Fix: use `evaluateJavascript()`'s `ValueCallback` instead of a late
+  `addJavascriptInterface()` and remove the callback ID / pending map.
+- Commit: `2a854d0`. Build, lint, integration and device validation pending.
+
 Session-by-session log. Newest first. Each entry: date, what changed,
 what CI said.
 
