@@ -196,8 +196,13 @@ object SegDecoder {
         channel: Int,
         cell: Int,
         channelsLast: Boolean,
-    ): Int =
-        if (channelsLast) cell * SEG_DIM + channel else channel * PROTO * PROTO + cell
+    ): Int {
+        return if (channelsLast) {
+            cell * SEG_DIM + channel
+        } else {
+            channel * PROTO * PROTO + cell
+        }
+    }
 
     fun sigmoid(v: Float): Float = (1.0 / (1.0 + exp(-v.toDouble()))).toFloat()
 }
