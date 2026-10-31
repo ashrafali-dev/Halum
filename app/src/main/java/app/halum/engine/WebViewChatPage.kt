@@ -2,7 +2,6 @@ package app.halum.engine
 
 import android.os.Handler
 import android.os.Looper
-import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import app.halum.core.ChatBridge
 import app.halum.util.Log
@@ -25,35 +24,22 @@ class WebViewChatPage(
     /** Q1: told once when the chat UI could not be recognised. */
     private val onBridgeFail: ((reason: String) -> Unit)? = null,
 ) : ChatBridge.ChatPage {
-    private val ready = CountDownLatch(1)
+    private val setupComplete = CountDownLatch(1)
     private val main = Handler(Looper.getMainLooper())
-
-    /** Results come back from JS through this object, on a JS thread. */
-    private inner class Bridge {
-        @JavascriptInterface
-        fun onResult(
-            id: Int,
-            value: String?,
-        ) {
-            pending.remove(id)?.let { it(value) }
-        }
-    }
-
-    private val pending = java.util.concurrent.ConcurrentHashMap<Int, (String?) -> Unit>()
-    private val nextId =
-        java.util.concurrent.atomic
-            .AtomicInteger(0)
 
     init {
         // Constructed on the pipeline worker, but every WebView call must be on
         // the thread that owns it. Post the setup rather than touching it here.
         runOnWebViewThread {
-            webView.settings.javaScriptEnabled = true
-            webView.addJavascriptInterface(Bridge(), JS_NAME)
-            // Install once the page is there; an SPA replaces the DOM after
-            // load, so the script re-defines window.halum harmlessly.
-            webView.evaluateJavascript(script, null)
-            ready.countDown()
+            try {
+                webView.settings.javaScriptEnabled = true
+                // addJavascriptInterface() is only visible after the next page
+                // load. The page is already loaded here, so use evaluateJavascript
+                // callbacks for every request instead of a JS interface.
+                webView.evaluateJavascript(script, null)
+            } finally {
+                setupComplete.countDown()
+            }
         }
     }
 
@@ -91,8 +77,8 @@ class WebViewChatPage(
 
     override fun lastReply(): String? {
         val raw = await("window.halum.lastReply()") ?: return null
-        // `await` hands back the JS value already JSON-encoded: null, or a
-        // quoted string. Anything else means the page changed under us.
+        // evaluateJavascript returns the JS value as JSON: null, or a quoted
+        // string. Anything else means the page changed under us.
         if (raw == "null") return null
         return runCatching {
             val decoded = org.json.JSONTokener(raw).nextValue()
@@ -105,38 +91,44 @@ class WebViewChatPage(
     }
 
     private fun await(expression: String): String? {
-        // The JS interface is installed on the UI thread; do not evaluate
-        // before it exists or onResult has nowhere to land.
-        if (!ready.await(timeoutMs, TimeUnit.MILLISECONDS)) {
-            Log.w(TAG, "bridge not installed within ${timeoutMs}ms")
+        // Wait until constructor setup has been posted to and run on the UI
+        // thread. Chat-page readiness itself is checked by isReady().
+        if (!setupComplete.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+            Log.w(TAG, "WebView setup not completed within ${timeoutMs}ms")
             return null
         }
-        val id = nextId.incrementAndGet()
         val latch = CountDownLatch(1)
         val result = AtomicReference<String?>(null)
-        pending[id] = { v ->
-            result.set(v)
-            latch.countDown()
-        }
-        main.post {
-            // The script is re-evaluated defensively: SPAs wipe injected globals
-            // on navigation, and a missing window.halum would silently no-op.
-            val js =
-                """
-                $script
-                ;(function () {
-                  try {
-                    var v = ($expression);
-                    $JS_NAME.onResult($id, JSON.stringify(v));
-                  } catch (e) {
-                    $JS_NAME.onResult($id, JSON.stringify(null));
-                  }
-                })();
-                """.trimIndent()
-            webView.evaluateJavascript(js, null)
+        val posted =
+            main.post {
+                // Re-evaluate the script defensively: SPAs wipe injected globals
+                // on navigation, and a missing window.halum would otherwise fail.
+                val js =
+                    """
+                    $script
+                    ;(function () {
+                      try {
+                        return ($expression);
+                      } catch (e) {
+                        return null;
+                      }
+                    })();
+                    """.trimIndent()
+                runCatching {
+                    webView.evaluateJavascript(js) { value ->
+                        result.set(value)
+                        latch.countDown()
+                    }
+                }.onFailure {
+                    Log.w(TAG, "js evaluation failed: ${it.javaClass.simpleName}")
+                    latch.countDown()
+                }
+            }
+        if (!posted) {
+            Log.w(TAG, "could not post JS evaluation: $expression")
+            return null
         }
         if (!latch.await(timeoutMs, TimeUnit.MILLISECONDS)) {
-            pending.remove(id)
             Log.w(TAG, "js timeout: $expression")
             return null
         }
@@ -145,6 +137,5 @@ class WebViewChatPage(
 
     private companion object {
         const val TAG = "WebViewChatPage"
-        const val JS_NAME = "HalumBridge"
     }
 }

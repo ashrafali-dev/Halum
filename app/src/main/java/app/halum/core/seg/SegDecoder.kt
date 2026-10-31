@@ -12,7 +12,7 @@ import kotlin.math.roundToInt
  *
  * Model contract (measured in MODELS.md):
  *   detections  (1, 37, 8400) float32 — cx, cy, w, h, 1 class score, 32 coeffs
- *   mask proto  (1, 32, 160, 160) float32
+ *   mask proto  (1, 32, 160, 160) in ONNX or (1, 160, 160, 32) in NHWC TFLite exports
  * Coordinates are in the 640×640 letterboxed space; [Letterbox] maps back.
  */
 object SegDecoder {
@@ -139,8 +139,8 @@ object SegDecoder {
     }
 
     /**
-     * Prototype → page mask. `proto` is (32, 160, 160) channel-major, cropped
-     * to the letterboxed square and scaled back to page pixels.
+     * Prototype → page mask. `proto` may be channel-first (32, 160, 160) or
+     * channel-last (160, 160, 32), depending on the TFLite export.
      *
      * Returns a page-sized binary mask (1 = bubble) and its pixel area.
      */
@@ -158,6 +158,8 @@ object SegDecoder {
         pageHeight: Int,
         letterbox: Letterbox,
         threshold: Float = 0.5f,
+        /** True when proto is exported as [1, 160, 160, 32] instead of channel-first. */
+        protoChannelsLast: Boolean = false,
     ): MaskResult {
         require(proto.size == SEG_DIM * PROTO * PROTO) {
             "expected ${SEG_DIM * PROTO * PROTO} proto floats, got ${proto.size}"
@@ -179,7 +181,7 @@ object SegDecoder {
                 val cell = rowBase + nx
                 var acc = 0f
                 for (c in 0 until SEG_DIM) {
-                    acc += det.coeffs[c] * proto[c * PROTO * PROTO + cell]
+                    acc += det.coeffs[c] * proto[prototypeIndex(c, cell, protoChannelsLast)]
                 }
                 if (sigmoid(acc) >= threshold) {
                     out[py * pageWidth + px] = 1
@@ -188,6 +190,18 @@ object SegDecoder {
             }
         }
         return MaskResult(out, pageWidth, pageHeight, filled)
+    }
+
+    private fun prototypeIndex(
+        channel: Int,
+        cell: Int,
+        channelsLast: Boolean,
+    ): Int {
+        return if (channelsLast) {
+            cell * SEG_DIM + channel
+        } else {
+            channel * PROTO * PROTO + cell
+        }
     }
 
     fun sigmoid(v: Float): Float = (1.0 / (1.0 + exp(-v.toDouble()))).toFloat()

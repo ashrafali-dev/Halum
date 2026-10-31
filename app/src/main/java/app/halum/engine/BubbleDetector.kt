@@ -8,6 +8,7 @@ import app.halum.util.Log
 import org.tensorflow.lite.Interpreter
 import java.io.Closeable
 import java.io.FileInputStream
+import java.nio.FloatBuffer
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 
@@ -20,6 +21,8 @@ import java.nio.channels.FileChannel
  */
 class BubbleDetector private constructor(
     private val interpreter: Interpreter,
+    /** True when the exported TFLite proto tensor is [1, 160, 160, 32] (NHWC). */
+    private val protoChannelsLast: Boolean,
 ) : Closeable {
     data class Bubble(
         val x1: Float,
@@ -43,9 +46,17 @@ class BubbleDetector private constructor(
         val input = Letterboxer.toInput(page)
         val detections = FloatArray(SegDecoder.NUM_CHANNELS * SegDecoder.COLS)
         val proto = FloatArray(SegDecoder.SEG_DIM * SegDecoder.PROTO * SegDecoder.PROTO)
+        // TFLite treats primitive arrays as shaped tensors and implicitly
+        // resizes them. A flat FloatArray becomes rank 1, changing the model
+        // input from [1,640,640,3] to [1228800] and making PAD fail (4 != 1).
+        // Buffer inputs/outputs are flat payloads and preserve model shapes.
+        // FloatBuffer.wrap shares the arrays; it does not copy them.
         interpreter.runForMultipleInputsOutputs(
-            arrayOf(input.rgb),
-            mapOf(0 to detections, 1 to proto),
+            arrayOf(FloatBuffer.wrap(input.rgb)),
+            mapOf(
+                0 to FloatBuffer.wrap(detections),
+                1 to FloatBuffer.wrap(proto),
+            ),
         )
         lastProto = proto
         return SegDecoder.decode(detections, input.letterbox) to input.letterbox
@@ -61,7 +72,15 @@ class BubbleDetector private constructor(
     ): List<Bubble> {
         val proto = lastProto ?: return emptyList()
         return detections.map { det ->
-            val m = SegDecoder.maskFor(det, proto, page.width, page.height, box)
+            val m =
+                SegDecoder.maskFor(
+                    det,
+                    proto,
+                    page.width,
+                    page.height,
+                    box,
+                    protoChannelsLast = protoChannelsLast,
+                )
             Bubble(det.x1, det.y1, det.x2, det.y2, det.score, m.mask, m.width, m.height, m.areaPx)
         }
     }
@@ -83,9 +102,47 @@ class BubbleDetector private constructor(
                 Interpreter.Options().apply {
                     setNumThreads(if (Runtime.getRuntime().availableProcessors() >= 4) 4 else 2)
                 }
-            val detector = BubbleDetector(Interpreter(mmap(model.file), options))
-            Log.i(TAG, "loaded ${model.file.name} ${model.size} bytes")
-            return detector
+            val interpreter = Interpreter(mmap(model.file), options)
+            return try {
+                val detector = createValidated(interpreter)
+                Log.i(
+                    TAG,
+                    "loaded " + model.file.name + " " + model.size + " bytes " +
+                        "input=" + interpreter.getInputTensor(0).shape().contentToString() +
+                        " protoLayout=" + if (detector.protoChannelsLast) "NHWC" else "NCHW",
+                )
+                detector
+            } catch (e: Exception) {
+                interpreter.close()
+                throw e
+            }
+        }
+
+        private fun createValidated(interpreter: Interpreter): BubbleDetector {
+            val inputShape = interpreter.getInputTensor(0).shape()
+            val expectedInputShape = intArrayOf(1, SegDecoder.OUTPUT, SegDecoder.OUTPUT, 3)
+            require(inputShape.contentEquals(expectedInputShape)) {
+                "bubble input shape " + inputShape.contentToString() +
+                    " != " + expectedInputShape.contentToString()
+            }
+
+            check(interpreter.outputTensorCount == 2) {
+                "bubble outputs=" + interpreter.outputTensorCount + " expected=2"
+            }
+            val detectionShape = interpreter.getOutputTensor(0).shape()
+            val expectedDetectionShape = intArrayOf(1, SegDecoder.NUM_CHANNELS, SegDecoder.COLS)
+            require(detectionShape.contentEquals(expectedDetectionShape)) {
+                "bubble detection output shape " + detectionShape.contentToString() +
+                    " != " + expectedDetectionShape.contentToString()
+            }
+
+            val protoShape = interpreter.getOutputTensor(1).shape()
+            val nchwShape = intArrayOf(1, SegDecoder.SEG_DIM, SegDecoder.PROTO, SegDecoder.PROTO)
+            val nhwcShape = intArrayOf(1, SegDecoder.PROTO, SegDecoder.PROTO, SegDecoder.SEG_DIM)
+            require(protoShape.contentEquals(nchwShape) || protoShape.contentEquals(nhwcShape)) {
+                "bubble proto output shape unsupported: " + protoShape.contentToString()
+            }
+            return BubbleDetector(interpreter, protoShape.contentEquals(nhwcShape))
         }
 
         private fun mmap(file: java.io.File): MappedByteBuffer =

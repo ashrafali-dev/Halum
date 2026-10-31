@@ -61,6 +61,40 @@ Format: `[OPEN|FIXING|FIXED] short title` — symptom, root cause, fix, run id.
 
 ## Open
 
+### [FIXING] Bubble inference resizes the model input to rank 1
+- Session 6 device log: `bubble.tflite` loads, but the first inference fails
+  in PAD with `SizeOfDimension(..., 0) != dims (4 != 1)`.
+- Root cause: `Letterboxer` returns a flat `FloatArray`; TFLite Java treats
+  primitive arrays as shaped tensors and implicitly resizes the model input
+  to rank 1. The graph expects `[1,640,640,3]`, while its PAD nodes expect
+  rank-4 paddings `[4,2]`. This reproduces the exact `4 != 1` failure.
+- Fix in branch `fix/tflite-rank-preserving-buffers-20261031`: pass input and
+  output as `FloatBuffer` so TFLite does not infer or resize tensor shapes.
+  Validate the input/output shape contract at startup.
+- Also removed the ONNX `auto_pad` rewrite: CI measured max output difference
+  324.538, so that rewrite changed model predictions and must not ship.
+- Corrected the TFLite checker: builtin PAD requires `[input_rank,2]`; the
+  previous checker incorrectly expected a flattened rank-1 paddings tensor.
+- Device confirmation: the 2026-10-31 log shows the model loaded with
+  input `[1,640,640,3]` and `BUBBLES: 3 scored`; the former first-inference PAD
+  crash is no longer present. Mask quality and the full translation path are
+  not covered by this detector-only evidence.
+- Status: inference fix appears confirmed on-device; current branch CI is
+  running after the additional chat-bridge correction.
+
+### [FIXING] WebView chat callbacks time out before any prompt is sent
+- Session 7 device log: `js timeout: !!(window.halum && window.halum.ready())`
+  repeats for ~30 seconds, ending with `BRIDGE: state=TIMED_OUT attempts=0`,
+  `translated=0`, and `placed=0`.
+- Root cause: `WebViewChatPage` is constructed lazily after `chatgpt.com` has
+  already loaded, then calls `addJavascriptInterface()`. Android does not
+  expose a newly added JS interface until the next page load. The injected
+  `HalumBridge.onResult()` call therefore cannot reach Kotlin.
+- Fix in the same branch: remove the JS interface and receive evaluation
+  results through `WebView.evaluateJavascript()`'s `ValueCallback`; this
+  works with the already-loaded page and removes the callback ID map.
+- Status: code committed; CI and a fresh device run are pending.
+
 ### [OPEN] InpaintEngine is never called
 - `OverlayView` draws translated text straight over the original artwork;
   nothing fills the bubbles first. AC4 numbers (MI-GAN residual) come from the

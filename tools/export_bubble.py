@@ -14,9 +14,9 @@ So we do the conversion ourselves with onnx2tf >= 2.6 (requires Python
 directly through `ai-edge-litert`, so no TensorFlow wheel is needed; the
 `[tensorflow]` extra only matters for the legacy `tf_converter` backend.
 
-We ask the default `flatbuffer_direct` backend for the float32 and float16
-variants. INT8 is deliberately not attempted: it needs a segment-labelled
-calibration dataset (BUGS.md), and float16 already lands at ~6 MB.
+We use onnx2tf's `tf_converter` backend and select float32 for the device CPU.
+INT8 is deliberately not attempted: it needs a segment-labelled calibration
+dataset (BUGS.md).
 
 If conversion fails the script returns non-zero and fetch_models.sh aborts,
 because the app cannot run without a bubble model.
@@ -66,13 +66,10 @@ def onnx_to_tflite(onnx_path: str, work_dir: str) -> str:
     ])
     tb_dir = os.path.join(work_dir, "tb")
     shutil.rmtree(tb_dir, ignore_errors=True)
-    # No `-b 1`. The ONNX is already batch-1; `-b` rewrites the batch
-    # dimension, and that rewrite is what introduced a leading PAD node whose
-    # paddings tensor has rank 4 — rejected at interpreter creation on device:
-    #   pad.cc:123 SizeOfDimension(op_context->paddings, 0) != op_context->dims
-    #   (4 != 1). Node number 0 (PAD) failed to prepare.
-    # `--tflite_backend tf_converter` is kept: it is the better-tested lowering
-    # of the two onnx2tf backends.
+    # ONNX is already batch-1; avoid a converter batch rewrite. Keep the
+    # exported input rank and original Conv padding semantics unchanged.
+    # tf_converter is used because the earlier flatbuffer_direct export did
+    # not prepare on the target device CPU.
     sh([
         os.path.join(venv, "bin", "onnx2tf"),
         "-i", onnx_path, "-o", tb_dir,
@@ -97,67 +94,6 @@ def onnx_to_tflite(onnx_path: str, work_dir: str) -> str:
     return chosen
 
 
-def conv_to_auto_pad(onnx_path: str, out_path: str) -> int:
-    """Turn Conv's explicit `pads` into `auto_pad`, so no PAD node is emitted.
-
-    The graph has no Pad node at all (100 Conv, no Pad). onnx2tf lowers each
-    Conv's `pads=[1,1,1,1]` attribute into a separate TFLite PAD op with a 2-D
-    paddings tensor, which the shipped tensorflow-lite 2.16.1 refuses:
-
-      pad.cc:123 SizeOfDimension(op_context->paddings, 0) != op_context->dims
-      (4 != 1)
-
-    Expressing the same padding as `auto_pad=SAME_UPPER` (or VALID when the
-    pads are zero) lets TFLite set CONV_2D's own padding field instead.
-
-    Only pads that SAME_UPPER/VALID reproduce exactly are converted: uniform
-    pads of (k-1)/2 for odd kernels, or all-zero. Anything else is left alone
-    and reported, never guessed at.
-    """
-    import onnx
-    from onnx import helper
-
-    model = onnx.load(onnx_path)
-    graph = model.graph
-
-    converted = 0
-    skipped = []
-    for node in graph.node:
-        if node.op_type != "Conv":
-            continue
-        attr = {a.name: helper.get_attribute_value(a) for a in node.attribute}
-        pads = attr.get("pads")
-        if pads is None or "auto_pad" in attr:
-            continue
-        kernel = attr.get("kernel_shape")
-        if kernel is None or len(kernel) != 2 or len(pads) != 4:
-            skipped.append((node.name, "unexpected shape"))
-            continue
-        top, left, bottom, right = (int(p) for p in pads)
-        if top == bottom == left == right == 0:
-            mode = b"VALID"
-        else:
-            kh, kw = int(kernel[0]), int(kernel[1])
-            if top != bottom or left != right or top != (kh - 1) // 2 or left != (kw - 1) // 2:
-                skipped.append((node.name, f"asymmetric pads {pads} kernel {kernel}"))
-                continue
-            if kh % 2 == 0 or kw % 2 == 0:
-                skipped.append((node.name, f"even kernel {kernel}"))
-                continue
-            mode = b"SAME_UPPER"
-
-        node.attribute.remove(next(a for a in node.attribute if a.name == "pads"))
-        node.attribute.append(helper.make_attribute("auto_pad", mode))
-        converted += 1
-
-    if skipped:
-        for name, why in skipped[:10]:
-            print(f"[export_bubble] conv left as-is: {name}: {why}")
-
-    onnx.save(model, out_path)
-    return converted
-
-
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pt", required=True)
@@ -173,12 +109,10 @@ def main() -> int:
     else:
         onnx_path = yolo_to_onnx(args.pt, args.work)
 
-    # Conversion input only; integration_test.py keeps using the original ONNX.
-    flat_path = os.path.join(args.work, "bubble_autopad.onnx")
-    rewritten = conv_to_auto_pad(onnx_path, flat_path)
-    print(f"[export_bubble] auto_pad on {rewritten} Conv nodes -> {flat_path}")
-
-    tflite = onnx_to_tflite(flat_path, args.work)
+    # Convert the original ONNX without rewriting Conv padding. auto_pad
+    # changed numerical outputs for stride-2 layers; padding semantics must
+    # remain exactly as exported by Ultralytics.
+    tflite = onnx_to_tflite(onnx_path, args.work)
     dest = os.path.join(args.out, "bubble.tflite")
     shutil.copyfile(tflite, dest)
     print(f"[export_bubble] wrote {dest} {os.path.getsize(dest) / 1e6:.2f} MB")
