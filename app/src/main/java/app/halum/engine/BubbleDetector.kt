@@ -103,57 +103,46 @@ class BubbleDetector private constructor(
                     setNumThreads(if (Runtime.getRuntime().availableProcessors() >= 4) 4 else 2)
                 }
             val interpreter = Interpreter(mmap(model.file), options)
+            return try {
+                val detector = createValidated(interpreter)
+                Log.i(
+                    TAG,
+                    "loaded " + model.file.name + " " + model.size + " bytes " +
+                        "input=" + interpreter.getInputTensor(0).shape().contentToString() +
+                        " protoLayout=" + if (detector.protoChannelsLast) "NHWC" else "NCHW",
+                )
+                detector
+            } catch (e: Exception) {
+                interpreter.close()
+                throw e
+            }
+        }
+
+        private fun createValidated(interpreter: Interpreter): BubbleDetector {
             val inputShape = interpreter.getInputTensor(0).shape()
             val expectedInputShape = intArrayOf(1, SegDecoder.OUTPUT, SegDecoder.OUTPUT, 3)
-            if (!inputShape.contentEquals(expectedInputShape)) {
-                interpreter.close()
-                throw IllegalStateException(
-                    "bubble input shape " + inputShape.contentToString() +
-                        " != " + expectedInputShape.contentToString(),
-                )
+            require(inputShape.contentEquals(expectedInputShape)) {
+                "bubble input shape " + inputShape.contentToString() +
+                    " != " + expectedInputShape.contentToString()
             }
 
-            if (interpreter.outputTensorCount != 2) {
-                val count = interpreter.outputTensorCount
-                interpreter.close()
-                throw IllegalStateException("bubble outputs=" + count + " expected=2")
+            check(interpreter.outputTensorCount == 2) {
+                "bubble outputs=" + interpreter.outputTensorCount + " expected=2"
             }
             val detectionShape = interpreter.getOutputTensor(0).shape()
             val expectedDetectionShape = intArrayOf(1, SegDecoder.NUM_CHANNELS, SegDecoder.COLS)
-            if (!detectionShape.contentEquals(expectedDetectionShape)) {
-                interpreter.close()
-                throw IllegalStateException(
-                    "bubble detection output shape " + detectionShape.contentToString() +
-                        " != " + expectedDetectionShape.contentToString(),
-                )
+            require(detectionShape.contentEquals(expectedDetectionShape)) {
+                "bubble detection output shape " + detectionShape.contentToString() +
+                    " != " + expectedDetectionShape.contentToString()
             }
 
             val protoShape = interpreter.getOutputTensor(1).shape()
-            val protoChannelsLast =
-                when {
-                    protoShape.contentEquals(
-                        intArrayOf(1, SegDecoder.SEG_DIM, SegDecoder.PROTO, SegDecoder.PROTO),
-                    ) -> false
-                    protoShape.contentEquals(
-                        intArrayOf(1, SegDecoder.PROTO, SegDecoder.PROTO, SegDecoder.SEG_DIM),
-                    ) -> true
-                    else -> {
-                        interpreter.close()
-                        throw IllegalStateException(
-                            "bubble proto output shape unsupported: " +
-                                protoShape.contentToString(),
-                        )
-                    }
-                }
-
-            val detector = BubbleDetector(interpreter, protoChannelsLast)
-            Log.i(
-                TAG,
-                "loaded " + model.file.name + " " + model.size + " bytes " +
-                    "input=" + inputShape.contentToString() +
-                    " protoLayout=" + if (protoChannelsLast) "NHWC" else "NCHW",
-            )
-            return detector
+            val nchwShape = intArrayOf(1, SegDecoder.SEG_DIM, SegDecoder.PROTO, SegDecoder.PROTO)
+            val nhwcShape = intArrayOf(1, SegDecoder.PROTO, SegDecoder.PROTO, SegDecoder.SEG_DIM)
+            require(protoShape.contentEquals(nchwShape) || protoShape.contentEquals(nhwcShape)) {
+                "bubble proto output shape unsupported: " + protoShape.contentToString()
+            }
+            return BubbleDetector(interpreter, protoShape.contentEquals(nhwcShape))
         }
 
         private fun mmap(file: java.io.File): MappedByteBuffer =
