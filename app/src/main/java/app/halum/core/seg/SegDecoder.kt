@@ -158,6 +158,8 @@ object SegDecoder {
         pageHeight: Int,
         letterbox: Letterbox,
         threshold: Float = 0.5f,
+        /** True when proto is exported as [1, 160, 160, 32] instead of channel-first. */
+        protoChannelsLast: Boolean = false,
     ): MaskResult {
         require(proto.size == SEG_DIM * PROTO * PROTO) {
             "expected ${SEG_DIM * PROTO * PROTO} proto floats, got ${proto.size}"
@@ -179,7 +181,13 @@ object SegDecoder {
                 val cell = rowBase + nx
                 var acc = 0f
                 for (c in 0 until SEG_DIM) {
-                    acc += det.coeffs[c] * proto[c * PROTO * PROTO + cell]
+                    val protoIndex =
+                        if (protoChannelsLast) {
+                            cell * SEG_DIM + c
+                        } else {
+                            c * PROTO * PROTO + cell
+                        }
+                    acc += det.coeffs[c] * proto[protoIndex]
                 }
                 if (sigmoid(acc) >= threshold) {
                     out[py * pageWidth + px] = 1
