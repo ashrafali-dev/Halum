@@ -61,6 +61,23 @@ Format: `[OPEN|FIXING|FIXED] short title` — symptom, root cause, fix, run id.
 
 ## Open
 
+### [FIXING] Bubble inference resizes the model input to rank 1
+- Session 6 device log: `bubble.tflite` loads, but the first inference fails
+  in PAD with `SizeOfDimension(..., 0) != dims (4 != 1)`.
+- Root cause: `Letterboxer` returns a flat `FloatArray`; TFLite Java treats
+  primitive arrays as shaped tensors and implicitly resizes the model input
+  to rank 1. The graph expects `[1,640,640,3]`, while its PAD nodes expect
+  rank-4 paddings `[4,2]`. This reproduces the exact `4 != 1` failure.
+- Fix in branch `fix/tflite-rank-preserving-buffers-20261031`: pass input and
+  output as `FloatBuffer` so TFLite does not infer or resize tensor shapes.
+  Validate the input/output shape contract at startup.
+- Also removed the ONNX `auto_pad` rewrite: CI measured max output difference
+  324.538, so that rewrite changed model predictions and must not ship.
+- Corrected the TFLite checker: builtin PAD requires `[input_rank,2]`; the
+  previous checker incorrectly expected a flattened rank-1 paddings tensor.
+- Status: code committed to the fix branch; CI and device confirmation pending.
+
+
 ### [OPEN] InpaintEngine is never called
 - `OverlayView` draws translated text straight over the original artwork;
   nothing fills the bubbles first. AC4 numbers (MI-GAN residual) come from the
