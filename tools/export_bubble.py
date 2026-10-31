@@ -14,9 +14,9 @@ So we do the conversion ourselves with onnx2tf >= 2.6 (requires Python
 directly through `ai-edge-litert`, so no TensorFlow wheel is needed; the
 `[tensorflow]` extra only matters for the legacy `tf_converter` backend.
 
-We ask the default `flatbuffer_direct` backend for the float32 and float16
-variants. INT8 is deliberately not attempted: it needs a segment-labelled
-calibration dataset (BUGS.md), and float16 already lands at ~6 MB.
+We use onnx2tf's `tf_converter` backend and select float32 for the device CPU.
+INT8 is deliberately not attempted: it needs a segment-labelled calibration
+dataset (BUGS.md).
 
 If conversion fails the script returns non-zero and fetch_models.sh aborts,
 because the app cannot run without a bubble model.
@@ -66,13 +66,10 @@ def onnx_to_tflite(onnx_path: str, work_dir: str) -> str:
     ])
     tb_dir = os.path.join(work_dir, "tb")
     shutil.rmtree(tb_dir, ignore_errors=True)
-    # No `-b 1`. The ONNX is already batch-1; `-b` rewrites the batch
-    # dimension, and that rewrite is what introduced a leading PAD node whose
-    # paddings tensor has rank 4 — rejected at interpreter creation on device:
-    #   pad.cc:123 SizeOfDimension(op_context->paddings, 0) != op_context->dims
-    #   (4 != 1). Node number 0 (PAD) failed to prepare.
-    # `--tflite_backend tf_converter` is kept: it is the better-tested lowering
-    # of the two onnx2tf backends.
+    # ONNX is already batch-1; avoid a converter batch rewrite. Keep the
+    # exported input rank and original Conv padding semantics unchanged.
+    # tf_converter is used because the earlier flatbuffer_direct export did
+    # not prepare on the target device CPU.
     sh([
         os.path.join(venv, "bin", "onnx2tf"),
         "-i", onnx_path, "-o", tb_dir,
