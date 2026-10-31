@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Does the shipped bubble.tflite actually allocate, and if not, why?
 
-Every device failure so far happened at Interpreter *creation*, never at
-inference:
+The device failure happens during tensor allocation, which can be triggered
+by the first inference after Java has implicitly resized an input tensor:
 
   conv.cc:361   input_type == kTfLiteFloat32 || kTfLiteUInt8 || ... was not true
   pad.cc:123    SizeOfDimension(op_context->paddings, 0) != op_context->dims (4 != 1)
